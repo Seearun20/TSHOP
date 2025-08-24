@@ -1,3 +1,6 @@
+
+"use client";
+
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,18 +27,160 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { readyMadeStock } from "@/lib/data";
-import { MoreHorizontal, PlusCircle } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import { useState } from "react";
 
+const addStockSchema = z.object({
+  item: z.string().min(1, { message: "Item name is required" }),
+  size: z.string().min(1, { message: "Size is required" }),
+  quantity: z.coerce.number().min(1, { message: "Quantity must be at least 1" }),
+  cost: z.coerce.number().min(1, { message: "Cost is required" }),
+  supplier: z.string().min(1, { message: "Supplier name is required" }),
+});
+
+function AddStockForm({ setOpen }: { setOpen: (open: boolean) => void }) {
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<z.infer<typeof addStockSchema>>({
+    resolver: zodResolver(addStockSchema),
+    defaultValues: {
+      item: "",
+      size: "",
+      quantity: 1,
+      cost: 0,
+      supplier: "",
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof addStockSchema>) => {
+    setIsSubmitting(true);
+    // Simulate API call
+    setTimeout(() => {
+      console.log(values);
+      toast({
+        title: "Success!",
+        description: `Successfully added ${values.quantity} of ${values.item} to stock.`,
+      });
+      setIsSubmitting(false);
+      setOpen(false);
+    }, 1000);
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="item"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Item Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Sherwani" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="size"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Size</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., 42 or L" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="quantity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Quantity</FormLabel>
+                <FormControl>
+                  <Input type="number" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="cost"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cost Price</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="Cost per item" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <FormField
+          control={form.control}
+          name="supplier"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Supplier</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., Gupta Textiles" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <DialogFooter>
+          <Button
+            type="submit"
+            className="w-full sm:w-auto"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              "Add to Inventory"
+            )}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
+  );
+}
 
 export default function ReadyMadeStockPage() {
+  const [open, setOpen] = useState(false);
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -44,22 +189,25 @@ export default function ReadyMadeStockPage() {
   };
   return (
     <div className="space-y-8">
-      <PageHeader title="Ready-Made Stock" subtitle="Manage your sherwanis, suits, and blazers.">
-         <Dialog>
-            <DialogTrigger asChild>
-                <Button>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Stock
-                </Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                <DialogTitle>Add New Ready-Made Stock</DialogTitle>
-                <DialogDescription>
-                    Fill in the details below to add a new item to your inventory.
-                </DialogDescription>
-                </DialogHeader>
-                <p className="text-center py-8 text-muted-foreground">(Form to add stock goes here)</p>
-            </DialogContent>
+      <PageHeader
+        title="Ready-Made Stock"
+        subtitle="Manage your sherwanis, suits, and blazers."
+      >
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Stock
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Ready-Made Stock</DialogTitle>
+              <DialogDescription>
+                Fill in the details below to add a new item to your inventory.
+              </DialogDescription>
+            </DialogHeader>
+            <AddStockForm setOpen={setOpen} />
+          </DialogContent>
         </Dialog>
       </PageHeader>
       <Card>
