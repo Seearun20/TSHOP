@@ -69,7 +69,7 @@ export function Invoice({ order }: InvoiceProps) {
                         <div className="text-right p-2 font-bold text-lg">{formatCurrency(order.balance)}</div>
                     </div>
                 </CardContent>
-                <CardFooter className="flex-col items-start gap-4">
+                <CardFooter className="flex-col items-start gap-4 p-8 pt-0 print:p-8">
                      <div className="text-sm text-muted-foreground">
                         <p className="font-semibold">Terms & Conditions</p>
                         <ul className="list-disc list-inside">

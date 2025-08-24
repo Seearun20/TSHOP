@@ -276,7 +276,13 @@ export default function OrdersPage() {
       {currentOrder && (
          <>
             <Dialog open={dialogs.invoice} onOpenChange={(open) => setDialogs(p => ({...p, invoice: open}))}>
-                <DialogContent className="max-w-3xl">
+                <DialogContent className="max-w-3xl p-0">
+                    <DialogHeader className="p-6 pb-0">
+                        <DialogTitle>Invoice #{currentOrder.id}</DialogTitle>
+                        <DialogDescription>
+                            Review the invoice details below before printing.
+                        </DialogDescription>
+                    </DialogHeader>
                     <Invoice order={currentOrder} />
                 </DialogContent>
             </Dialog>
