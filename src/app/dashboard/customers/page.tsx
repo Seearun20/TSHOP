@@ -188,7 +188,7 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
         </DialogFooter>
       </form>
     </Form>
-  )
+  );
 });
 
 
