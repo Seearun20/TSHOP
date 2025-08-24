@@ -65,20 +65,41 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, DocumentData } from "firebase/firestore";
+import { Separator } from "@/components/ui/separator";
 
 export interface Customer {
     id: string;
     name: string;
     phone: string;
     email: string;
-    measurements: string;
+    measurements?: {
+        shirtLength?: string;
+        pantLength?: string;
+        chest?: string;
+        sleeve?: string;
+        shoulder?: string;
+        waist?: string;
+        hip?: string;
+        notes?: string;
+    };
 }
+
+const measurementSchema = z.object({
+  shirtLength: z.string().optional(),
+  pantLength: z.string().optional(),
+  chest: z.string().optional(),
+  sleeve: z.string().optional(),
+  shoulder: z.string().optional(),
+  waist: z.string().optional(),
+  hip: z.string().optional(),
+  notes: z.string().optional(),
+});
 
 const customerSchema = z.object({
   name: z.string().min(1, "Customer name is required"),
   phone: z.string().min(10, "Phone number must be at least 10 digits"),
   email: z.string().email("Invalid email address").optional().or(z.literal('')),
-  measurements: z.string().optional(),
+  measurements: measurementSchema.optional(),
 });
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
@@ -87,16 +108,20 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
   const { toast } = useToast();
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
-    defaultValues: customer ? {
-      name: customer.name,
-      phone: customer.phone,
-      email: customer.email,
-      measurements: customer.measurements,
-    } : {
+    defaultValues: customer || {
       name: "",
       phone: "",
       email: "",
-      measurements: "",
+      measurements: {
+        shirtLength: "",
+        pantLength: "",
+        chest: "",
+        sleeve: "",
+        shoulder: "",
+        waist: "",
+        hip: "",
+        notes: "",
+      },
     },
   });
 
@@ -169,17 +194,23 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
               </FormItem>
             )}
           />
-         <FormField
-            control={form.control}
-            name="measurements"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Measurements</FormLabel>
-                <FormControl><Textarea placeholder="e.g., Shirt: L-28, C-42, SL-25..." {...field} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <Separator />
+            <div>
+              <h3 className="text-sm font-medium mb-2">Optional Measurements</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <FormField control={form.control} name="measurements.shirtLength" render={({ field }) => (<FormItem><FormLabel>Shirt L</FormLabel><FormControl><Input placeholder="e.g. 28" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="measurements.pantLength" render={({ field }) => (<FormItem><FormLabel>Pant L</FormLabel><FormControl><Input placeholder="e.g. 40" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="measurements.chest" render={({ field }) => (<FormItem><FormLabel>Chest</FormLabel><FormControl><Input placeholder="e.g. 42" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="measurements.sleeve" render={({ field }) => (<FormItem><FormLabel>Sleeve</FormLabel><FormControl><Input placeholder="e.g. 25" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="measurements.shoulder" render={({ field }) => (<FormItem><FormLabel>Shoulder</FormLabel><FormControl><Input placeholder="e.g. 18" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="measurements.waist" render={({ field }) => (<FormItem><FormLabel>Waist</FormLabel><FormControl><Input placeholder="e.g. 36" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="measurements.hip" render={({ field }) => (<FormItem><FormLabel>Hip</FormLabel><FormControl><Input placeholder="e.g. 44" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              </div>
+              <div className="mt-4">
+                <FormField control={form.control} name="measurements.notes" render={({ field }) => (<FormItem><FormLabel>Notes</FormLabel><FormControl><Textarea placeholder="Any other notes..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+              </div>
+            </div>
+
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button type="submit" disabled={isSubmitting}>
@@ -233,6 +264,17 @@ export default function CustomersPage() {
     }
   }
 
+  const formatMeasurements = (measurements: Customer['measurements']) => {
+    if (!measurements) return 'N/A';
+    return Object.entries(measurements)
+      .filter(([, value]) => value)
+      .map(([key, value]) => {
+        const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+        return `${label}: ${value}`;
+      })
+      .join('\n');
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader title="Customers" subtitle="Manage your customer database and measurements.">
@@ -242,7 +284,7 @@ export default function CustomersPage() {
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Customer
                 </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
                 <DialogHeader>
                 <DialogTitle>Add New Customer</DialogTitle>
                 <DialogDescription>
@@ -280,7 +322,7 @@ export default function CustomersPage() {
                     <div>{customer.phone}</div>
                     <div className="text-sm text-muted-foreground">{customer.email}</div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs whitespace-pre-wrap">{customer.measurements}</TableCell>
+                  <TableCell className="font-mono text-xs whitespace-pre-wrap">{formatMeasurements(customer.measurements)}</TableCell>
                   <TableCell>
                     <AlertDialog>
                       <DropdownMenu>
@@ -330,7 +372,7 @@ export default function CustomersPage() {
 
       {currentCustomer && (
         <Dialog open={dialogs.edit} onOpenChange={(open) => setDialogs(p => ({...p, edit: open}))}>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Edit Customer</DialogTitle>
                     <DialogDescription>Update the details for {currentCustomer.name}.</DialogDescription>
