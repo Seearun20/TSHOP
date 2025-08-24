@@ -1,3 +1,4 @@
+
 // Mock data for StitchSavvy
 
 export const financialSummary = {
@@ -75,7 +76,22 @@ export const fabricStock = [
   { id: "FAB004", type: "Silk", length: 30, costPerMtr: 2500, supplier: "Silk Route" },
 ];
 
-export const orders = [
+export interface Order {
+    id: string;
+    customerName: string;
+    deliveryDate: string;
+    total: number;
+    paid: number;
+    balance: number;
+    status: string;
+    items: string;
+    measurements?: {
+        [key: string]: string | undefined;
+    };
+}
+
+
+export const orders: Order[] = [
   { 
     id: "ORD101", 
     customerName: "Arjun Sharma", 
@@ -84,7 +100,13 @@ export const orders = [
     paid: 3500, 
     balance: 0, 
     status: "Delivered",
-    items: "Kurta Pyjama Stitching"
+    items: "Kurta Pyjama Stitching",
+    measurements: {
+        length: '42',
+        chest: '44',
+        sleeve: '25',
+        shoulder: '18',
+    }
   },
   { 
     id: "ORD102", 
