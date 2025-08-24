@@ -85,21 +85,25 @@ type CustomerFormValues = z.infer<typeof customerSchema>;
 
 const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen: (open: boolean) => void; customer?: Customer | null }) {
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const isEditMode = !!customer;
-
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
-    defaultValues: {
-      name: customer?.name || "",
-      phone: customer?.phone || "",
-      email: customer?.email || "",
-      measurements: customer?.measurements || "",
+    defaultValues: customer ? {
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
+      measurements: customer.measurements,
+    } : {
+      name: "",
+      phone: "",
+      email: "",
+      measurements: "",
     },
   });
 
+  const { formState: { isSubmitting } } = form;
+  const isEditMode = !!customer;
+
   const onSubmit = async (values: CustomerFormValues) => {
-    setIsSubmitting(true);
     try {
       if (isEditMode && customer) {
         const customerDoc = doc(db, "customers", customer.id);
@@ -116,6 +120,7 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
         });
       }
       setOpen(false);
+      form.reset();
     } catch (error) {
       console.error("Error saving customer: ", error);
       toast({
@@ -123,8 +128,6 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
         title: "Error",
         description: "There was a problem saving the customer details.",
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -178,6 +181,7 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
             )}
           />
         <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? <Loader2 className="animate-spin" /> : (isEditMode ? "Save Changes" : "Add Customer")}
           </Button>
@@ -234,7 +238,7 @@ export default function CustomersPage() {
       <PageHeader title="Customers" subtitle="Manage your customer database and measurements.">
          <Dialog open={dialogs.add} onOpenChange={(open) => setDialogs(p => ({...p, add: open}))}>
             <DialogTrigger asChild>
-                <Button>
+                <Button onClick={() => { setCurrentCustomer(null); setDialogs(p => ({...p, add: true})) }}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Customer
                 </Button>
             </DialogTrigger>
@@ -255,7 +259,7 @@ export default function CustomersPage() {
           <CardDescription>
             A list of all your valued customers.
           </CardDescription>
-        </CardHeader>
+        </Header>
         <CardContent>
           <Table>
             <TableHeader>
