@@ -47,7 +47,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -83,7 +83,7 @@ const customerSchema = z.object({
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
 
-function CustomerForm({ setOpen, customer }: { setOpen: (open: boolean) => void; customer?: Customer | null }) {
+const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen: (open: boolean) => void; customer?: Customer | null }) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!customer;
@@ -185,7 +185,7 @@ function CustomerForm({ setOpen, customer }: { setOpen: (open: boolean) => void;
       </form>
     </Form>
   )
-}
+});
 
 
 export default function CustomersPage() {
