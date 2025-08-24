@@ -1,3 +1,6 @@
+
+"use client";
+
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,11 +19,91 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { customers, serviceCharges, fabricStock } from "@/lib/data";
+import {
+  customers,
+  serviceCharges,
+  fabricStock,
+  readyMadeStock,
+} from "@/lib/data";
 import { Separator } from "@/components/ui/separator";
+import { useState } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+
+const orderSchema = z.object({
+  orderType: z.enum(["stitching", "readymade", "fabric"]),
+  customerId: z.string().min(1, "Customer is required"),
+  deliveryDate: z.string().min(1, "Delivery date is required"),
+  
+  // Stitching fields
+  stitchingService: z.string().optional(),
+  measurements: z.object({
+    length: z.string().optional(),
+    chest: z.string().optional(),
+    sleeve: z.string().optional(),
+    shoulder: z.string().optional(),
+    waist: z.string().optional(),
+    hip: z.string().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  
+  // Ready-made fields
+  readymadeId: z.string().optional(),
+  readymadeSize: z.string().optional(),
+
+  // Fabric fields
+  fabricId: z.string().optional(),
+  fabricLength: z.coerce.number().optional(),
+
+  sellingPrice: z.coerce.number().min(1, "Selling price is required"),
+});
+
+type OrderFormValues = z.infer<typeof orderSchema>;
+
+const measurementFields: { [key: string]: string[] } = {
+    'Shirt': ['length', 'chest', 'sleeve', 'shoulder', 'notes'],
+    'Pant': ['length', 'waist', 'hip', 'notes'],
+    'Kurta+Pyjama': ['length', 'chest', 'sleeve', 'shoulder', 'waist', 'hip', 'notes'],
+    'Kurta': ['length', 'chest', 'sleeve', 'shoulder', 'notes'],
+    'Pyjama': ['length', 'waist', 'hip', 'notes'],
+    '3pc Suit': ['length', 'chest', 'sleeve', 'shoulder', 'waist', 'hip', 'notes'],
+    '2pc Suit': ['length', 'chest', 'sleeve', 'shoulder', 'waist', 'hip', 'notes'],
+    'Blazer': ['length', 'chest', 'sleeve', 'shoulder', 'notes'],
+    'Sherwani': ['length', 'chest', 'sleeve', 'shoulder', 'notes'],
+};
 
 export default function NewOrderPage() {
+  const [receipt, setReceipt] = useState<Partial<OrderFormValues> | null>(null);
+
+  const form = useForm<OrderFormValues>({
+    resolver: zodResolver(orderSchema),
+    defaultValues: {
+      orderType: "stitching",
+      customerId: "",
+      deliveryDate: "",
+      sellingPrice: 0,
+    },
+  });
+
+  const orderType = form.watch("orderType");
+  const stitchingService = form.watch("stitchingService");
+
+  const onSubmit = (data: OrderFormValues) => {
+    console.log(data);
+    setReceipt(data);
+  };
+  
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -28,101 +111,334 @@ export default function NewOrderPage() {
     }).format(amount);
   };
 
-  return (
-    <div className="space-y-8">
-      <PageHeader title="New Order" subtitle="Create a new order and generate a measurement receipt."/>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">Customer & Order Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div>
-                  <Label htmlFor="customer">Select Customer</Label>
-                  <Select>
-                    <SelectTrigger id="customer">
-                      <SelectValue placeholder="Select an existing customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name} - {c.phone}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                 </div>
-                 <div>
-                    <Label htmlFor="delivery-date">Delivery Date</Label>
-                    <Input id="delivery-date" type="date" />
-                 </div>
-              </div>
-              <div>
-                  <Label htmlFor="service">Service Required</Label>
-                  <Select>
-                    <SelectTrigger id="service">
-                      <SelectValue placeholder="Select a stitching service" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(serviceCharges).map(([service, charge]) => (
-                        <SelectItem key={service} value={service}>{service} - {formatCurrency(charge)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-              </div>
-               <div>
-                  <Label htmlFor="fabric">Fabric from Store (Optional)</Label>
-                  <Select>
-                    <SelectTrigger id="fabric">
-                      <SelectValue placeholder="Select fabric from stock" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {fabricStock.map(f => <SelectItem key={f.id} value={f.id}>{f.type} - {formatCurrency(f.costPerMtr)}/mtr</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
+  const getCustomerName = (id: string) => customers.find(c => c.id === id)?.name || "N/A";
+  
+  const renderMeasurementFields = () => {
+      if (!stitchingService || !measurementFields[stitchingService]) return null;
+      
+      return (
+         <Card>
             <CardHeader>
                 <CardTitle className="font-headline">Measurements</CardTitle>
-                <CardDescription>Enter measurements for the stitching job.</CardDescription>
+                <CardDescription>Enter measurements for the {stitchingService}.</CardDescription>
             </CardHeader>
-            <CardContent>
-                 <Textarea placeholder="Enter all measurements here, e.g., Shirt: Length - 29, Chest - 42, Sleeve - 25..."/>
+            <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {measurementFields[stitchingService].map(field => 
+                    field !== 'notes' ? (
+                     <FormField
+                        key={field}
+                        control={form.control}
+                        name={`measurements.${field as keyof OrderFormValues['measurements']}`}
+                        render={({ field: formField }) => (
+                            <FormItem>
+                                <FormLabel className="capitalize">{field}</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="..." {...formField} />
+                                </FormControl>
+                                <FormMessage/>
+                            </FormItem>
+                        )}
+                        />
+                    ) : null
+                )}
+                {measurementFields[stitchingService].includes('notes') && (
+                     <div className="col-span-2 md:col-span-4">
+                        <FormField
+                            control={form.control}
+                            name="measurements.notes"
+                            render={({ field: formField }) => (
+                                <FormItem>
+                                    <FormLabel>Special Instructions</FormLabel>
+                                    <FormControl>
+                                        <Textarea placeholder="Any special notes or instructions..." {...formField} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                )}
             </CardContent>
-          </Card>
+         </Card>
+      )
+  }
 
-        </div>
+  return (
+    <div className="space-y-8">
+      <PageHeader title="New Order" subtitle="Create a new order and generate a receipt."/>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-headline">Order Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="customerId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Select Customer</FormLabel>
+                         <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                <SelectValue placeholder="Select an existing customer" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name} - {c.phone}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                   <FormField
+                    control={form.control}
+                    name="deliveryDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Delivery Date</FormLabel>
+                        <FormControl>
+                           <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                 <FormField
+                    control={form.control}
+                    name="orderType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Order Type</FormLabel>
+                         <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                <SelectValue placeholder="Select the type of order" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="stitching">Stitching Service</SelectItem>
+                                <SelectItem value="readymade">Sell Ready-Made Item</SelectItem>
+                                <SelectItem value="fabric">Sell Fabric Only</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+              </CardContent>
+            </Card>
+            
+            {orderType === 'stitching' && (
+                <>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline">Service & Fabric</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <FormField
+                            control={form.control}
+                            name="stitchingService"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Stitching Service</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                        <SelectValue placeholder="Select a stitching service" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {Object.keys(serviceCharges).map((service) => (
+                                            <SelectItem key={service} value={service}>{service}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="fabricId"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Fabric (Optional)</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select fabric from stock" />
+                                    </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                    {fabricStock.map(f => <SelectItem key={f.id} value={f.id}>{f.type} - {formatCurrency(f.costPerMtr)}/mtr</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </CardContent>
+                </Card>
+                {renderMeasurementFields()}
+                </>
+            )}
 
-        <div className="lg:col-span-1">
-            <Card className="sticky top-24">
-                <CardHeader>
-                    <CardTitle className="font-headline">Measurement Receipt</CardTitle>
-                    <CardDescription>Preview of the receipt for your tailor.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 font-mono text-sm">
-                    <div className="flex justify-between"><span>Order ID:</span> <span>ORD-2407-001</span></div>
-                    <div className="flex justify-between"><span>Customer:</span> <span>Rohan Verma</span></div>
-                    <div className="flex justify-between"><span>Delivery:</span> <span>2024-08-18</span></div>
-                    <Separator/>
-                    <p className="font-semibold uppercase">Item: Shirt</p>
-                    <div className="p-4 bg-muted rounded-md whitespace-pre-wrap">
-                    L: 29
-                    C: 44
-                    SL: 26
-                    Shoulder: 18.5
-                    </div>
-                     <Separator/>
-                    <div className="space-y-2">
-                      <div className="flex justify-between"><span>Stitching:</span> <span>{formatCurrency(500)}</span></div>
-                      <div className="flex justify-between font-bold"><span>Total Bill:</span> <span>{formatCurrency(500)}</span></div>
-                    </div>
-                    <Button className="w-full">Generate Receipt & Invoice</Button>
+            {orderType === 'readymade' && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline">Ready-Made Item Details</CardTitle>
+                    </CardHeader>
+                     <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <FormField
+                            control={form.control}
+                            name="readymadeId"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Item</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select an item" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {readyMadeStock.map(i => <SelectItem key={i.id} value={i.id}>{i.item}</SelectItem>)}
+                                </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="readymadeSize"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Size</FormLabel>
+                                <FormControl>
+                                <Input placeholder="Enter size" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                    </CardContent>
+                </Card>
+            )}
+
+            {orderType === 'fabric' && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline">Fabric Sale Details</CardTitle>
+                    </CardHeader>
+                     <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="fabricId"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Fabric</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select a fabric" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {fabricStock.map(f => <SelectItem key={f.id} value={f.id}>{f.type} - {formatCurrency(f.costPerMtr)}/mtr</SelectItem>)}
+                                </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="fabricLength"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Length (mtrs)</FormLabel>
+                                <FormControl>
+                                <Input type="number" placeholder="Enter length" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                    </CardContent>
+                </Card>
+            )}
+            
+            <Card>
+                <CardHeader><CardTitle>Pricing</CardTitle></CardHeader>
+                <CardContent>
+                    <FormField
+                        control={form.control}
+                        name="sellingPrice"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Total Selling Price</FormLabel>
+                            <FormControl>
+                            <Input type="number" placeholder="Enter final price" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
                 </CardContent>
             </Card>
-        </div>
-      </div>
+
+          </div>
+
+          <div className="lg:col-span-1">
+              <Card className="sticky top-24">
+                  <CardHeader>
+                      <CardTitle className="font-headline">Order Summary</CardTitle>
+                      <CardDescription>Preview of the order details.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4 font-mono text-sm">
+                      <div className="flex justify-between"><span>Order ID:</span> <span>ORD-2407-004</span></div>
+                      <div className="flex justify-between"><span>Customer:</span> <span>{getCustomerName(form.watch('customerId'))}</span></div>
+                      <div className="flex justify-between"><span>Delivery:</span> <span>{form.watch('deliveryDate')}</span></div>
+                      <Separator/>
+                      <p className="font-semibold uppercase">{receipt?.orderType || 'N/A'}</p>
+                      
+                       {receipt?.orderType === 'stitching' && receipt.stitchingService && (
+                            <div className="p-4 bg-muted rounded-md whitespace-pre-wrap">
+                                <p className="font-sans font-semibold pb-2">{receipt.stitchingService}</p>
+                                {receipt.measurements && Object.entries(receipt.measurements).map(([key, value]) => value && (
+                                   <div key={key} className="flex justify-between">
+                                       <span className="capitalize">{key}:</span>
+                                       <span>{value}</span>
+                                   </div>
+                                ))}
+                            </div>
+                       )}
+                       {receipt?.orderType === 'readymade' && (
+                           <div className="p-4 bg-muted rounded-md">
+                               <p>{readyMadeStock.find(i => i.id === receipt.readymadeId)?.item}</p>
+                               <p className="text-xs">Size: {receipt.readymadeSize}</p>
+                           </div>
+                       )}
+                        {receipt?.orderType === 'fabric' && (
+                           <div className="p-4 bg-muted rounded-md">
+                               <p>{fabricStock.find(f => f.id === receipt.fabricId)?.type}</p>
+                               <p className="text-xs">Length: {receipt.fabricLength} mtrs</p>
+                           </div>
+                       )}
+
+                       <Separator/>
+                      <div className="space-y-2">
+                        <div className="flex justify-between font-bold"><span>Total Bill:</span> <span>{formatCurrency(receipt?.sellingPrice || 0)}</span></div>
+                      </div>
+                      <Button type="submit" className="w-full">Generate Receipt & Invoice</Button>
+                  </CardContent>
+              </Card>
+          </div>
+        </form>
+      </Form>
     </div>
   );
 }
