@@ -40,10 +40,14 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const orderSchema = z.object({
+  customerType: z.enum(['existing', 'new']),
+  customerId: z.string().optional(),
+  newCustomerName: z.string().optional(),
+  newCustomerPhone: z.string().optional(),
   orderType: z.enum(["stitching", "readymade", "fabric"]),
-  customerId: z.string().min(1, "Customer is required"),
   deliveryDate: z.string().min(1, "Delivery date is required"),
   
   // Stitching fields
@@ -67,7 +71,20 @@ const orderSchema = z.object({
   fabricLength: z.coerce.number().optional(),
 
   sellingPrice: z.coerce.number().min(1, "Selling price is required"),
+}).refine(data => {
+    if (data.customerType === 'existing' && !data.customerId) return false;
+    return true;
+}, {
+    message: "Please select an existing customer.",
+    path: ['customerId'],
+}).refine(data => {
+    if (data.customerType === 'new' && (!data.newCustomerName || !data.newCustomerPhone)) return false;
+    return true;
+}, {
+    message: "New customer name and phone are required.",
+    path: ['newCustomerName'],
 });
+
 
 type OrderFormValues = z.infer<typeof orderSchema>;
 
@@ -89,8 +106,8 @@ export default function NewOrderPage() {
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
     defaultValues: {
+      customerType: 'existing',
       orderType: "stitching",
-      customerId: "",
       deliveryDate: "",
       sellingPrice: 0,
     },
@@ -98,9 +115,12 @@ export default function NewOrderPage() {
 
   const orderType = form.watch("orderType");
   const stitchingService = form.watch("stitchingService");
+  const customerType = form.watch("customerType");
 
   const onSubmit = (data: OrderFormValues) => {
     console.log(data);
+    // Here you would typically handle adding the new customer to your database
+    // if data.customerType === 'new'
     setReceipt(data);
   };
   
@@ -111,7 +131,11 @@ export default function NewOrderPage() {
     }).format(amount);
   };
 
-  const getCustomerName = (id: string) => customers.find(c => c.id === id)?.name || "N/A";
+  const getCustomerName = (receiptData: Partial<OrderFormValues> | null) => {
+    if (!receiptData) return 'N/A';
+    if (receiptData.customerType === 'new') return receiptData.newCustomerName || 'N/A';
+    return customers.find(c => c.id === receiptData.customerId)?.name || "N/A";
+  }
   
   const renderMeasurementFields = () => {
       if (!stitchingService || !measurementFields[stitchingService]) return null;
@@ -171,30 +195,98 @@ export default function NewOrderPage() {
           <div className="lg:col-span-2 space-y-8">
             <Card>
               <CardHeader>
-                <CardTitle className="font-headline">Order Details</CardTitle>
+                <CardTitle className="font-headline">Customer Details</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
+               <CardContent className="space-y-4">
+                 <FormField
                     control={form.control}
-                    name="customerId"
+                    name="customerType"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Select Customer</FormLabel>
-                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                                <SelectTrigger>
-                                <SelectValue placeholder="Select an existing customer" />
-                                </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name} - {c.phone}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                      <FormItem className="space-y-3">
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex items-center space-x-4"
+                          >
+                            <FormItem className="flex items-center space-x-2 space-y-0">
+                              <FormControl>
+                                <RadioGroupItem value="existing" />
+                              </FormControl>
+                              <FormLabel className="font-normal">Existing Customer</FormLabel>
+                            </FormItem>
+                            <FormItem className="flex items-center space-x-2 space-y-0">
+                              <FormControl>
+                                <RadioGroupItem value="new" />
+                              </FormControl>
+                              <FormLabel className="font-normal">New Customer</FormLabel>
+                            </FormItem>
+                          </RadioGroup>
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                  {customerType === 'existing' ? (
+                     <FormField
+                        control={form.control}
+                        name="customerId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Select Customer</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                    <SelectValue placeholder="Select an existing customer" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name} - {c.phone}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        <FormField
+                            control={form.control}
+                            name="newCustomerName"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>New Customer Name</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="Enter customer's full name" {...field} />
+                                    </FormControl>
+                                    <FormMessage/>
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="newCustomerPhone"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>New Customer Phone</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="Enter customer's phone number" {...field} />
+                                    </FormControl>
+                                    <FormMessage/>
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                  )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-headline">Order Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                    <FormField
                     control={form.control}
                     name="deliveryDate"
@@ -208,7 +300,6 @@ export default function NewOrderPage() {
                       </FormItem>
                     )}
                   />
-                </div>
                  <FormField
                     control={form.control}
                     name="orderType"
@@ -231,6 +322,7 @@ export default function NewOrderPage() {
                       </FormItem>
                     )}
                   />
+                </div>
               </CardContent>
             </Card>
             
@@ -276,7 +368,7 @@ export default function NewOrderPage() {
                                     </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                    {fabricStock.map(f => <SelectItem key={f.id} value={f.id}>{f.type} - {formatCurrency(f.costPerMtr)}/mtr</SelectItem>)}
+                                    {fabricStock.map(f => <SelectItem key={f.id} value={f.id}>{f.type}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -347,7 +439,7 @@ export default function NewOrderPage() {
                                     <SelectTrigger><SelectValue placeholder="Select a fabric" /></SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    {fabricStock.map(f => <SelectItem key={f.id} value={f.id}>{f.type} - {formatCurrency(f.costPerMtr)}/mtr</SelectItem>)}
+                                    {fabricStock.map(f => <SelectItem key={f.id} value={f.id}>{f.type}</SelectItem>)}
                                 </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -400,7 +492,7 @@ export default function NewOrderPage() {
                   </CardHeader>
                   <CardContent className="space-y-4 font-mono text-sm">
                       <div className="flex justify-between"><span>Order ID:</span> <span>ORD-2407-004</span></div>
-                      <div className="flex justify-between"><span>Customer:</span> <span>{getCustomerName(form.watch('customerId'))}</span></div>
+                      <div className="flex justify-between"><span>Customer:</span> <span>{getCustomerName(receipt)}</span></div>
                       <div className="flex justify-between"><span>Delivery:</span> <span>{form.watch('deliveryDate')}</span></div>
                       <Separator/>
                       <p className="font-semibold uppercase">{receipt?.orderType || 'N/A'}</p>
