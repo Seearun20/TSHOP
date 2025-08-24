@@ -34,6 +34,7 @@ export function LoginForm() {
   const { toast } = useToast();
   const [step, setStep] = useState("phone"); // 'phone' or 'otp'
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState("");
 
   const phoneForm = useForm<z.infer<typeof PhoneSchema>>({
     resolver: zodResolver(PhoneSchema),
@@ -47,6 +48,7 @@ export function LoginForm() {
 
   const handlePhoneSubmit = (values: z.infer<typeof PhoneSchema>) => {
     setIsSubmitting(true);
+    setPhoneNumber(values.phone);
     // Simulate API call to send OTP
     setTimeout(() => {
       toast({
