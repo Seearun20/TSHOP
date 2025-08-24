@@ -144,7 +144,16 @@ export const customers: Customer[] = [
     { id: "CUST003", name: "Rohan Verma", phone: "9876543212", email: "rohan.v@example.com", measurements: "Shirt: L-29, C-44, SL-26" },
 ];
 
-export const employees = [
+export interface Employee {
+    id: string;
+    name: string;
+    role: string;
+    salary: number;
+    balance: number;
+    leaves: number;
+}
+
+export const employees: Employee[] = [
     { id: "EMP001", name: "Suresh Kumar", role: "Master Tailor", salary: 25000, balance: 0, leaves: 2 },
     { id: "EMP002", name: "Ramesh Jain", role: "Assistant Tailor", salary: 18000, balance: 500, leaves: 1 },
     { id: "EMP003", name: "Vikas Mehra", role: "Salesman", salary: 15000, balance: 0, leaves: 4 },
