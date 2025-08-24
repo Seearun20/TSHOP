@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -29,26 +30,21 @@ const PhoneSchema = z.object({
     .min(10, { message: "Phone number must be at least 10 digits." }),
 });
 
-export function LoginForm() {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [step, setStep] = useState("phone"); // 'phone' or 'otp'
+function PhoneStep({
+  onPhoneSubmit,
+}: {
+  onPhoneSubmit: (phoneNumber: string) => void;
+}) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const { toast } = useToast();
 
-  const phoneForm = useForm<z.infer<typeof PhoneSchema>>({
+  const form = useForm<z.infer<typeof PhoneSchema>>({
     resolver: zodResolver(PhoneSchema),
     defaultValues: { phone: "" },
   });
 
-  const otpForm = useForm<z.infer<typeof OTPSchema>>({
-    resolver: zodResolver(OTPSchema),
-    defaultValues: { otp: "" },
-  });
-
-  const handlePhoneSubmit = (values: z.infer<typeof PhoneSchema>) => {
+  const handleSubmit = (values: z.infer<typeof PhoneSchema>) => {
     setIsSubmitting(true);
-    setPhoneNumber(values.phone);
     // Simulate API call to send OTP
     setTimeout(() => {
       toast({
@@ -56,68 +52,15 @@ export function LoginForm() {
         description: `An OTP has been sent to ${values.phone}. (Hint: Use 123456)`,
       });
       setIsSubmitting(false);
-      setStep("otp");
+      onPhoneSubmit(values.phone);
     }, 1000);
   };
-
-  const handleOtpSubmit = (values: z.infer<typeof OTPSchema>) => {
-    setIsSubmitting(true);
-    // Simulate API call to verify OTP
-    setTimeout(() => {
-      if (values.otp === "123456") {
-        toast({
-          title: "Success!",
-          description: "You have been logged in successfully.",
-        });
-        router.push("/dashboard");
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Invalid OTP",
-          description: "The OTP you entered is incorrect. Please try again.",
-        });
-        otpForm.setError("otp", {
-          type: "manual",
-          message: "Incorrect OTP. Please try again.",
-        });
-        setIsSubmitting(false);
-      }
-    }, 1000);
-  };
-
-  if (step === "otp") {
-    return (
-      <Form {...otpForm}>
-        <form onSubmit={otpForm.handleSubmit(handleOtpSubmit)} className="space-y-6">
-          <FormField
-            control={otpForm.control}
-            name="otp"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Enter OTP</FormLabel>
-                <FormControl>
-                  <Input placeholder="123456" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button type="submit" className="w-full font-bold" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="animate-spin" /> : "Verify & Login"}
-          </Button>
-          <Button variant="link" size="sm" className="w-full" onClick={() => { setStep('phone'); otpForm.reset(); phoneForm.reset(); }}>
-            Back to phone number
-          </Button>
-        </form>
-      </Form>
-    );
-  }
 
   return (
-    <Form {...phoneForm}>
-      <form onSubmit={phoneForm.handleSubmit(handlePhoneSubmit)} className="space-y-6">
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
         <FormField
-          control={phoneForm.control}
+          control={form.control}
           name="phone"
           render={({ field }) => (
             <FormItem>
@@ -134,5 +77,89 @@ export function LoginForm() {
         </Button>
       </form>
     </Form>
+  );
+}
+
+function OtpStep({
+  onBack,
+}: {
+  onBack: () => void;
+}) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<z.infer<typeof OTPSchema>>({
+    resolver: zodResolver(OTPSchema),
+    defaultValues: { otp: "" },
+  });
+
+  const handleSubmit = (values: z.infer<typeof OTPSchema>) => {
+    setIsSubmitting(true);
+    // Simulate API call to verify OTP
+    setTimeout(() => {
+      if (values.otp === "123456") {
+        toast({
+          title: "Success!",
+          description: "You have been logged in successfully.",
+        });
+        router.push("/dashboard");
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Invalid OTP",
+          description: "The OTP you entered is incorrect. Please try again.",
+        });
+        form.setError("otp", {
+          type: "manual",
+          message: "Incorrect OTP. Please try again.",
+        });
+        setIsSubmitting(false);
+      }
+    }, 1000);
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+        <FormField
+          control={form.control}
+          name="otp"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Enter OTP</FormLabel>
+              <FormControl>
+                <Input placeholder="123456" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button type="submit" className="w-full font-bold" disabled={isSubmitting}>
+          {isSubmitting ? <Loader2 className="animate-spin" /> : "Verify & Login"}
+        </Button>
+        <Button variant="link" size="sm" className="w-full" onClick={onBack}>
+          Back to phone number
+        </Button>
+      </form>
+    </Form>
+  );
+}
+
+export function LoginForm() {
+  const [step, setStep] = useState<"phone" | "otp">("phone");
+
+  const handlePhoneSubmit = (phoneNumber: string) => {
+    setStep("otp");
+  };
+
+  const handleBack = () => {
+    setStep("phone");
+  };
+
+  return step === "phone" ? (
+    <PhoneStep onPhoneSubmit={handlePhoneSubmit} />
+  ) : (
+    <OtpStep onBack={handleBack} />
   );
 }
