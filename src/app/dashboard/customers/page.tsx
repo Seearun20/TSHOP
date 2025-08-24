@@ -83,7 +83,7 @@ const customerSchema = z.object({
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
 
-function CustomerForm({ setOpen, customer, onSave }: { setOpen: (open: boolean) => void; customer?: Customer | null, onSave: () => void }) {
+function CustomerForm({ setOpen, customer }: { setOpen: (open: boolean) => void; customer?: Customer | null }) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!customer;
@@ -115,7 +115,6 @@ function CustomerForm({ setOpen, customer, onSave }: { setOpen: (open: boolean) 
           description: `Successfully added ${values.name}.`,
         });
       }
-      onSave();
       setOpen(false);
     } catch (error) {
       console.error("Error saving customer: ", error);
@@ -199,16 +198,11 @@ export default function CustomersPage() {
       delete: false,
   });
 
-  const fetchCustomers = () => {
-     const unsubscribe = onSnapshot(collection(db, "customers"), (snapshot) => {
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "customers"), (snapshot) => {
       const customersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
       setCustomers(customersData);
     });
-    return unsubscribe;
-  }
-
-  useEffect(() => {
-    const unsubscribe = fetchCustomers();
     return () => unsubscribe();
   }, []);
 
@@ -226,7 +220,6 @@ export default function CustomersPage() {
             title: "Customer Deleted",
             description: `${currentCustomer.name} has been removed from your records.`
         });
-        fetchCustomers();
     } catch (error) {
         toast({
             variant: "destructive",
@@ -252,7 +245,7 @@ export default function CustomersPage() {
                     Fill in the details below to add a new customer to your records.
                 </DialogDescription>
                 </DialogHeader>
-                <CustomerForm setOpen={(open) => setDialogs(p => ({...p, add: open}))} onSave={fetchCustomers} />
+                <CustomerForm setOpen={(open) => setDialogs(p => ({...p, add: open}))} />
             </DialogContent>
         </Dialog>
       </PageHeader>
@@ -338,7 +331,7 @@ export default function CustomersPage() {
                     <DialogTitle>Edit Customer</DialogTitle>
                     <DialogDescription>Update the details for {currentCustomer.name}.</DialogDescription>
                 </DialogHeader>
-                <CustomerForm setOpen={(open) => setDialogs(p => ({...p, edit: open}))} customer={currentCustomer} onSave={fetchCustomers} />
+                <CustomerForm setOpen={(open) => setDialogs(p => ({...p, edit: open}))} customer={currentCustomer} />
             </DialogContent>
         </Dialog>
       )}
