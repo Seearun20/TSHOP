@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { employees, type Employee } from "@/lib/data";
+import { employees as mockEmployees, type Employee } from "@/lib/data";
 import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -78,6 +78,7 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const isEditMode = !!employee;
+    const [employees, setEmployees] = useState(mockEmployees);
 
     const form = useForm<EmployeeFormValues>({
         resolver: zodResolver(employeeSchema),
@@ -92,7 +93,12 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
         setIsSubmitting(true);
         // Simulate API call
         setTimeout(() => {
-            console.log(values);
+            if (isEditMode && employee) {
+                setEmployees(employees.map(e => e.id === employee.id ? {...e, ...values} : e));
+            } else {
+                const newEmployee = { ...values, id: `EMP${employees.length + 1}`, balance: 0, leaves: 0 };
+                setEmployees([...employees, newEmployee]);
+            }
             toast({
                 title: isEditMode ? "Employee Updated!" : "Employee Added!",
                 description: `Successfully ${isEditMode ? 'updated' : 'added'} ${values.name}.`,
@@ -152,6 +158,7 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
 
 export default function EmployeesPage() {
     const { toast } = useToast();
+    const [employees, setEmployees] = useState(mockEmployees);
     const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
     const [dialogs, setDialogs] = useState({
         add: false,
@@ -175,6 +182,7 @@ export default function EmployeesPage() {
     
     const handlePaySalary = () => {
         if(!currentEmployee) return;
+        setEmployees(employees.map(e => e.id === currentEmployee.id ? {...e, balance: 0} : e));
          toast({
             title: "Salary Paid!",
             description: `Salary paid to ${currentEmployee.name}. Balance is now zero.`,
@@ -187,6 +195,7 @@ export default function EmployeesPage() {
         if (!currentEmployee) return;
         const form = event.currentTarget;
         const newLeaves = (form.elements.namedItem('leaves') as HTMLInputElement).value;
+        setEmployees(employees.map(e => e.id === currentEmployee.id ? {...e, leaves: parseInt(newLeaves) } : e));
          toast({
             title: "Leaves Updated",
             description: `Leave balance updated for ${currentEmployee.name}.`,
@@ -197,6 +206,7 @@ export default function EmployeesPage() {
 
     const handleRemoveEmployee = () => {
         if (!currentEmployee) return;
+        setEmployees(employees.filter(e => e.id !== currentEmployee.id));
         toast({
             variant: "destructive",
             title: "Employee Removed",

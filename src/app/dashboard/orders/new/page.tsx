@@ -20,13 +20,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  customers,
+  customers as mockCustomers,
   serviceCharges,
   fabricStock,
   readyMadeStock,
 } from "@/lib/data";
 import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -41,6 +41,9 @@ import {
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Customer } from "@/app/dashboard/customers/page";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 
 const orderSchema = z.object({
   customerType: z.enum(['existing', 'new']),
@@ -102,6 +105,15 @@ const measurementFields: { [key: string]: string[] } = {
 
 export default function NewOrderPage() {
   const [receipt, setReceipt] = useState<Partial<OrderFormValues> | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "customers"), (snapshot) => {
+      const customersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+      setCustomers(customersData);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),

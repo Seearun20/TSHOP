@@ -26,7 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { customers, type Customer } from "@/lib/data";
 import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -48,7 +47,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -64,7 +63,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, DocumentData } from "firebase/firestore";
 
+export interface Customer {
+    id: string;
+    name: string;
+    phone: string;
+    email: string;
+    measurements: string;
+}
 
 const customerSchema = z.object({
   name: z.string().min(1, "Customer name is required"),
@@ -75,7 +83,7 @@ const customerSchema = z.object({
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
 
-function CustomerForm({ setOpen, customer }: { setOpen: (open: boolean) => void; customer?: Customer | null }) {
+function CustomerForm({ setOpen, customer, onSave }: { setOpen: (open: boolean) => void; customer?: Customer | null, onSave: () => void }) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!customer;
@@ -90,18 +98,35 @@ function CustomerForm({ setOpen, customer }: { setOpen: (open: boolean) => void;
     },
   });
 
-  const onSubmit = (values: CustomerFormValues) => {
+  const onSubmit = async (values: CustomerFormValues) => {
     setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
-      console.log(values);
-      toast({
-        title: isEditMode ? "Customer Updated!" : "Customer Added!",
-        description: `Successfully ${isEditMode ? 'updated' : 'added'} ${values.name}.`,
-      });
-      setIsSubmitting(false);
+    try {
+      if (isEditMode && customer) {
+        const customerDoc = doc(db, "customers", customer.id);
+        await updateDoc(customerDoc, values);
+        toast({
+          title: "Customer Updated!",
+          description: `Successfully updated ${values.name}.`,
+        });
+      } else {
+        await addDoc(collection(db, "customers"), values);
+        toast({
+          title: "Customer Added!",
+          description: `Successfully added ${values.name}.`,
+        });
+      }
+      onSave();
       setOpen(false);
-    }, 1000);
+    } catch (error) {
+      console.error("Error saving customer: ", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "There was a problem saving the customer details.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -166,6 +191,7 @@ function CustomerForm({ setOpen, customer }: { setOpen: (open: boolean) => void;
 
 export default function CustomersPage() {
   const { toast } = useToast();
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [currentCustomer, setCurrentCustomer] = useState<Customer | null>(null);
   const [dialogs, setDialogs] = useState({
       add: false,
@@ -173,18 +199,41 @@ export default function CustomersPage() {
       delete: false,
   });
 
+  const fetchCustomers = () => {
+     const unsubscribe = onSnapshot(collection(db, "customers"), (snapshot) => {
+      const customersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+      setCustomers(customersData);
+    });
+    return unsubscribe;
+  }
+
+  useEffect(() => {
+    const unsubscribe = fetchCustomers();
+    return () => unsubscribe();
+  }, []);
+
   const handleActionClick = (customer: Customer, dialog: keyof typeof dialogs) => {
     setCurrentCustomer(customer);
     setDialogs(prev => ({ ...prev, [dialog]: true }));
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!currentCustomer) return;
-     toast({
-        variant: "destructive",
-        title: "Customer Deleted",
-        description: `${currentCustomer.name} has been removed from your records.`
-    })
+    try {
+        await deleteDoc(doc(db, "customers", currentCustomer.id));
+        toast({
+            variant: "destructive",
+            title: "Customer Deleted",
+            description: `${currentCustomer.name} has been removed from your records.`
+        });
+        fetchCustomers();
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not delete customer."
+        })
+    }
   }
 
   return (
@@ -203,7 +252,7 @@ export default function CustomersPage() {
                     Fill in the details below to add a new customer to your records.
                 </DialogDescription>
                 </DialogHeader>
-                <CustomerForm setOpen={(open) => setDialogs(p => ({...p, add: open}))} />
+                <CustomerForm setOpen={(open) => setDialogs(p => ({...p, add: open}))} onSave={fetchCustomers} />
             </DialogContent>
         </Dialog>
       </PageHeader>
@@ -289,7 +338,7 @@ export default function CustomersPage() {
                     <DialogTitle>Edit Customer</DialogTitle>
                     <DialogDescription>Update the details for {currentCustomer.name}.</DialogDescription>
                 </DialogHeader>
-                <CustomerForm setOpen={(open) => setDialogs(p => ({...p, edit: open}))} customer={currentCustomer} />
+                <CustomerForm setOpen={(open) => setDialogs(p => ({...p, edit: open}))} customer={currentCustomer} onSave={fetchCustomers} />
             </DialogContent>
         </Dialog>
       )}
