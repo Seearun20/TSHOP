@@ -259,7 +259,7 @@ export default function CustomersPage() {
           <CardDescription>
             A list of all your valued customers.
           </CardDescription>
-        </Header>
+        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
