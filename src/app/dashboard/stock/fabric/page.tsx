@@ -1,3 +1,6 @@
+
+"use client";
+
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,18 +27,162 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { fabricStock } from "@/lib/data";
-import { MoreHorizontal, PlusCircle } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import { useState } from "react";
+
+const addFabricSchema = z.object({
+  type: z.string().min(1, { message: "Fabric type is required" }),
+  length: z.coerce.number().min(1, { message: "Length must be at least 1" }),
+  costPerMtr: z.coerce.number().min(1, { message: "Cost is required" }),
+  supplier: z.string().min(1, { message: "Supplier name is required" }),
+  supplierPhone: z.string().min(10, { message: "Supplier phone must be at least 10 digits" }),
+});
+
+function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<z.infer<typeof addFabricSchema>>({
+    resolver: zodResolver(addFabricSchema),
+    defaultValues: {
+      type: "",
+      length: 1,
+      costPerMtr: 0,
+      supplier: "",
+      supplierPhone: "",
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof addFabricSchema>) => {
+    setIsSubmitting(true);
+    // Simulate API call
+    setTimeout(() => {
+      console.log(values);
+      toast({
+        title: "Success!",
+        description: `Successfully added ${values.length} meters of ${values.type} to stock.`,
+      });
+      setIsSubmitting(false);
+      setOpen(false);
+    }, 1000);
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="type"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Fabric Type</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Italian Wool" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+              control={form.control}
+              name="length"
+              render={({ field }) => (
+              <FormItem>
+                  <FormLabel>Length (mtrs)</FormLabel>
+                  <FormControl>
+                  <Input type="number" {...field} />
+                  </FormControl>
+                  <FormMessage />
+              </FormItem>
+              )}
+          />
+          <FormField
+              control={form.control}
+              name="costPerMtr"
+              render={({ field }) => (
+              <FormItem>
+                  <FormLabel>Cost per Meter</FormLabel>
+                  <FormControl>
+                  <Input type="number" placeholder="Cost per meter" {...field} />
+                  </FormControl>
+                  <FormMessage />
+              </FormItem>
+              )}
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="supplier"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Supplier</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Fabric Mart" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="supplierPhone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Supplier Phone</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., 9876543210" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+        </div>
+        <DialogFooter>
+          <Button
+            type="submit"
+            className="w-full sm:w-auto"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              "Add to Inventory"
+            )}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
+  );
+}
+
 
 export default function FabricStockPage() {
-    const formatCurrency = (amount: number) => {
+  const [open, setOpen] = useState(false);
+  const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
@@ -45,7 +192,7 @@ export default function FabricStockPage() {
   return (
     <div className="space-y-8">
       <PageHeader title="Fabric Stock" subtitle="Manage your fabric inventory.">
-         <Dialog>
+         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Fabric
@@ -58,7 +205,7 @@ export default function FabricStockPage() {
                     Fill in the details below to add new fabric to your inventory.
                 </DialogDescription>
                 </DialogHeader>
-                <p className="text-center py-8 text-muted-foreground">(Form to add fabric goes here)</p>
+                <AddFabricForm setOpen={setOpen}/>
             </DialogContent>
         </Dialog>
       </PageHeader>
