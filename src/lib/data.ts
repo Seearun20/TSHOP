@@ -130,7 +130,15 @@ export const orders: Order[] = [
   },
 ];
 
-export const customers = [
+export interface Customer {
+    id: string;
+    name: string;
+    phone: string;
+    email: string;
+    measurements: string;
+}
+
+export const customers: Customer[] = [
     { id: "CUST001", name: "Arjun Sharma", phone: "9876543210", email: "arjun.s@example.com", measurements: "Shirt: L-28, C-42, SL-25" },
     { id: "CUST002", name: "Priya Singh", phone: "9876543211", email: "priya.s@example.com", measurements: "Suit: L-30, C-40, W-34" },
     { id: "CUST003", name: "Rohan Verma", phone: "9876543212", email: "rohan.v@example.com", measurements: "Shirt: L-29, C-44, SL-26" },
