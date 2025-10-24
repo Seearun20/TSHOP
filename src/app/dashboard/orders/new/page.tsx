@@ -150,74 +150,18 @@ const apparelMeasurements: Record<string, z.ZodObject<any>> = {
   'Blazer': blazerMeasurements,
 };
 
-function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddItem: (item: OrderItem) => void, customerId?: string, customers: Customer[] }) {
+function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) => void }) {
     const [open, setOpen] = useState(false);
     const [apparel, setApparel] = useState('');
     const [price, setPrice] = useState(0);
     const [isOwnFabric, setIsOwnFabric] = useState(false);
     const [measurements, setMeasurements] = useState<Record<string, string>>({});
     const measurementFields = apparel ? Object.keys(apparelMeasurements[apparel]?.shape || {}) : [];
-    const { toast } = useToast();
-
-    const getApparelKey = (apparelName: string) => {
-      if (!apparelName) return '';
-      return apparelName.toLowerCase().replace(/[\s+]/g, '');
-    }
-
-    const handleFetchMeasurements = () => {
-        if (!customerId || !apparel) return;
-        const customer = customers.find(c => c.id === customerId);
-        if (!customer) return;
-
-        const apparelKey = getApparelKey(apparel);
-        const existingMeasurements = (customer as any).measurements?.[apparelKey];
-
-        if (existingMeasurements && typeof existingMeasurements === 'object') {
-            setMeasurements(existingMeasurements);
-            toast({
-                title: 'Success!',
-                description: `Fetched measurements for ${apparel} for ${customer.name}.`
-            })
-        } else {
-            toast({
-                variant: 'destructive',
-                title: 'Not Found',
-                description: `No saved measurements found for ${apparel} for this customer.`
-            })
-        }
-    }
-
-
+    
     const handleAdd = () => {
         if (!apparel || price <= 0) {
             // Basic validation
             return;
-        }
-
-        // Save measurements to customer if a customer is selected
-        if (customerId && Object.values(measurements).some(v => v)) {
-            const customerDoc = doc(db, "customers", customerId);
-            const apparelKey = getApparelKey(apparel);
-            
-            const updatePayload = {
-              [`measurements.${apparelKey}`]: measurements
-            };
-            
-            updateDoc(customerDoc, updatePayload)
-              .then(() => {
-                toast({
-                  title: 'Measurements Saved',
-                  description: `Measurements for ${apparel} have been saved to the customer's profile.`
-                })
-              })
-              .catch(error => {
-               const permissionError = new FirestorePermissionError({
-                   path: customerDoc.path,
-                   operation: 'update',
-                   requestResourceData: updatePayload
-               });
-               errorEmitter.emit('permission-error', permissionError);
-            });
         }
 
         onAddItem({
@@ -271,11 +215,6 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
                         <div>
                              <div className="flex items-center justify-between mb-2">
                                 <h4 className="font-medium">Measurements ({apparel})</h4>
-                                {customerId && apparel && (
-                                    <Button type="button" variant="link" onClick={handleFetchMeasurements}>
-                                        Fetch Measurements
-                                    </Button>
-                                )}
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {measurementFields.map(field => (
@@ -348,7 +287,6 @@ export default function NewOrderPage() {
     const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
     const watchedItems = form.watch("items");
     const customerType = form.watch("customerType");
-    const customerId = form.watch("customerId");
 
     const subtotal = useMemo(() => watchedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0), [watchedItems]);
     const advance = form.watch("advance") || 0;
@@ -564,7 +502,7 @@ export default function NewOrderPage() {
                         <CardContent className="space-y-6">
                             {/* Stitching Service */}
                             <div className="p-4 border rounded-md">
-                               <StitchingServiceDialog onAddItem={handleAddItem} customerId={customerId} customers={customers}/>
+                               <StitchingServiceDialog onAddItem={handleAddItem} />
                             </div>
                             
                             {/* Ready-Made */}
@@ -643,7 +581,7 @@ export default function NewOrderPage() {
                                 <FormField control={form.control} name="advance" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Advance Paid</FormLabel>
-                                        <FormControl><Input type="text" inputMode="numeric" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value.replace(/[^0-9]/g, ''))}/></FormControl>
+                                        <FormControl><Input type="text" inputMode="numeric" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value.replace(/[^0-9]/g, ''))} value={field.value ?? ''}/></FormControl>
                                         <FormMessage/>
                                     </FormItem>
                                 )}/>
