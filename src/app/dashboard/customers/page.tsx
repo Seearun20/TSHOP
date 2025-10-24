@@ -66,6 +66,8 @@ import Link from "next/link";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, DocumentData } from "firebase/firestore";
 import { Separator } from "@/components/ui/separator";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export interface Customer {
     id: string;
@@ -129,30 +131,44 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
   const isEditMode = !!customer;
 
   const onSubmit = async (values: CustomerFormValues) => {
-    try {
-      if (isEditMode && customer) {
-        const customerDoc = doc(db, "customers", customer.id);
-        await updateDoc(customerDoc, values);
-        toast({
-          title: "Customer Updated!",
-          description: `Successfully updated ${values.name}.`,
+    if (isEditMode && customer) {
+      const customerDoc = doc(db, "customers", customer.id);
+      updateDoc(customerDoc, values)
+        .then(() => {
+          toast({
+            title: "Customer Updated!",
+            description: `Successfully updated ${values.name}.`,
+          });
+          setOpen(false);
+          form.reset();
+        })
+        .catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+            path: customerDoc.path,
+            operation: "update",
+            requestResourceData: values,
+          });
+          errorEmitter.emit("permission-error", permissionError);
         });
-      } else {
-        await addDoc(collection(db, "customers"), values);
-        toast({
-          title: "Customer Added!",
-          description: `Successfully added ${values.name}.`,
+    } else {
+      const customersCollection = collection(db, "customers");
+      addDoc(customersCollection, values)
+        .then(() => {
+          toast({
+            title: "Customer Added!",
+            description: `Successfully added ${values.name}.`,
+          });
+          setOpen(false);
+          form.reset();
+        })
+        .catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+            path: customersCollection.path,
+            operation: "create",
+            requestResourceData: values,
+          });
+          errorEmitter.emit("permission-error", permissionError);
         });
-      }
-      setOpen(false);
-      form.reset();
-    } catch (error) {
-      console.error("Error saving customer: ", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "There was a problem saving the customer details.",
-      });
     }
   };
 
@@ -234,9 +250,17 @@ export default function CustomersPage() {
   });
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "customers"), (snapshot) => {
+    const customersCollection = collection(db, "customers");
+    const unsubscribe = onSnapshot(customersCollection, (snapshot) => {
       const customersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
       setCustomers(customersData);
+    },
+    async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: customersCollection.path,
+          operation: "list",
+        });
+        errorEmitter.emit("permission-error", permissionError);
     });
     return () => unsubscribe();
   }, []);
@@ -248,20 +272,22 @@ export default function CustomersPage() {
 
   const handleDelete = async () => {
     if (!currentCustomer) return;
-    try {
-        await deleteDoc(doc(db, "customers", currentCustomer.id));
-        toast({
-            variant: "destructive",
-            title: "Customer Deleted",
-            description: `${currentCustomer.name} has been removed from your records.`
-        });
-    } catch (error) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not delete customer."
+    const customerDoc = doc(db, "customers", currentCustomer.id);
+    deleteDoc(customerDoc)
+        .then(() => {
+            toast({
+                variant: "destructive",
+                title: "Customer Deleted",
+                description: `${currentCustomer.name} has been removed from your records.`
+            });
         })
-    }
+        .catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: customerDoc.path,
+                operation: "delete",
+            });
+            errorEmitter.emit("permission-error", permissionError);
+        });
   }
 
   const formatMeasurements = (measurements: Customer['measurements']) => {

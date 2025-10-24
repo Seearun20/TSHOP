@@ -70,6 +70,8 @@ import {
 } from "@/components/ui/select";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, onSnapshot, doc, deleteDoc, DocumentData } from "firebase/firestore";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export interface ReadyMadeStockItem {
     id: string;
@@ -119,29 +121,30 @@ function AddStockForm({ setOpen }: { setOpen: (open: boolean) => void }) {
   const { formState: { isSubmitting } } = form;
 
   const onSubmit = async (values: z.infer<typeof addStockSchema>) => {
-    try {
-        const finalValues = {
-          ...values,
-          item: values.item === 'Custom' ? values.customItem : values.item,
-        };
-        delete (finalValues as Partial<typeof finalValues>).customItem;
-        
-        await addDoc(collection(db, "readyMadeStock"), finalValues);
-
+    const finalValues = {
+      ...values,
+      item: values.item === 'Custom' ? values.customItem : values.item,
+    };
+    delete (finalValues as Partial<typeof finalValues>).customItem;
+    
+    const readyMadeStockCollection = collection(db, "readyMadeStock");
+    addDoc(readyMadeStockCollection, finalValues)
+      .then(() => {
         toast({
             title: "Success!",
             description: `Successfully added ${finalValues.quantity} of ${finalValues.item} to stock.`,
         });
         setOpen(false);
         form.reset();
-    } catch (error) {
-        console.error("Error adding stock: ", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "There was a problem adding the stock item.",
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: readyMadeStockCollection.path,
+          operation: "create",
+          requestResourceData: finalValues,
         });
-    }
+        errorEmitter.emit("permission-error", permissionError);
+      });
   };
 
   return (
@@ -280,9 +283,17 @@ export default function ReadyMadeStockPage() {
   const [currentItem, setCurrentItem] = useState<ReadyMadeStockItem | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "readyMadeStock"), (snapshot) => {
+    const readyMadeStockCollection = collection(db, "readyMadeStock");
+    const unsubscribe = onSnapshot(readyMadeStockCollection, (snapshot) => {
         const stockData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ReadyMadeStockItem));
         setReadyMadeStock(stockData);
+    },
+    async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: readyMadeStockCollection.path,
+          operation: "list",
+        });
+        errorEmitter.emit("permission-error", permissionError);
     });
     return () => unsubscribe();
   }, []);
@@ -296,20 +307,22 @@ export default function ReadyMadeStockPage() {
 
   const handleDelete = async () => {
     if (!currentItem) return;
-    try {
-        await deleteDoc(doc(db, "readyMadeStock", currentItem.id));
-        toast({
-            variant: "destructive",
-            title: "Item Deleted",
-            description: `${currentItem.item} has been removed from your inventory.`
-        });
-    } catch (error) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not delete item."
+    const itemDoc = doc(db, "readyMadeStock", currentItem.id);
+    deleteDoc(itemDoc)
+        .then(() => {
+            toast({
+                variant: "destructive",
+                title: "Item Deleted",
+                description: `${currentItem.item} has been removed from your inventory.`
+            });
         })
-    }
+        .catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: itemDoc.path,
+                operation: "delete",
+            });
+            errorEmitter.emit("permission-error", permissionError);
+        });
   }
 
   return (

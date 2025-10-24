@@ -1,3 +1,4 @@
+
 "use client"
 import Link from "next/link";
 import {
@@ -30,7 +31,11 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion"
+} from "@/components/ui/accordion";
+import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 
 export default function DashboardLayout({
@@ -39,6 +44,24 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const handlePermissionError = (error: FirestorePermissionError) => {
+      console.error("Caught Firestore Permission Error:", error.toObject());
+      toast({
+        variant: "destructive",
+        title: "Permission Denied",
+        description: error.message,
+      });
+    };
+
+    errorEmitter.on("permission-error", handlePermissionError);
+
+    return () => {
+      errorEmitter.off("permission-error", handlePermissionError);
+    };
+  }, [toast]);
 
   const isActive = (path: string) => pathname === path;
   const isParentActive = (path: string) => pathname.startsWith(path);

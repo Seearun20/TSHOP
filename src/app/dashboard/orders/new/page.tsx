@@ -44,6 +44,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Customer } from "@/app/dashboard/customers/page";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 const orderSchema = z.object({
   customerType: z.enum(['existing', 'new']),
@@ -108,9 +110,17 @@ export default function NewOrderPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "customers"), (snapshot) => {
+    const customersCollection = collection(db, "customers");
+    const unsubscribe = onSnapshot(customersCollection, (snapshot) => {
       const customersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
       setCustomers(customersData);
+    },
+    async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: customersCollection.path,
+          operation: "list",
+        });
+        errorEmitter.emit("permission-error", permissionError);
     });
     return () => unsubscribe();
   }, []);

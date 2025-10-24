@@ -63,6 +63,8 @@ import * as z from "zod";
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, onSnapshot, doc, deleteDoc, DocumentData } from "firebase/firestore";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export interface FabricStockItem {
     id: string;
@@ -98,22 +100,24 @@ function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
   const { formState: { isSubmitting } } = form;
 
   const onSubmit = async (values: z.infer<typeof addFabricSchema>) => {
-    try {
-        await addDoc(collection(db, "fabricStock"), values);
-        toast({
-            title: "Success!",
-            description: `Successfully added ${values.length} meters of ${values.type} to stock.`,
+    const fabricStockCollection = collection(db, "fabricStock");
+    addDoc(fabricStockCollection, values)
+        .then(() => {
+            toast({
+                title: "Success!",
+                description: `Successfully added ${values.length} meters of ${values.type} to stock.`,
+            });
+            setOpen(false);
+            form.reset();
+        })
+        .catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: fabricStockCollection.path,
+                operation: "create",
+                requestResourceData: values,
+            });
+            errorEmitter.emit("permission-error", permissionError);
         });
-        setOpen(false);
-        form.reset();
-    } catch (error) {
-        console.error("Error adding fabric: ", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "There was a problem adding the fabric.",
-        });
-    }
   };
 
   return (
@@ -214,9 +218,17 @@ export default function FabricStockPage() {
   const [currentItem, setCurrentItem] = useState<FabricStockItem | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "fabricStock"), (snapshot) => {
+    const fabricStockCollection = collection(db, "fabricStock");
+    const unsubscribe = onSnapshot(fabricStockCollection, (snapshot) => {
         const stockData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FabricStockItem));
         setFabricStock(stockData);
+    },
+    async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: fabricStockCollection.path,
+          operation: "list",
+        });
+        errorEmitter.emit("permission-error", permissionError);
     });
     return () => unsubscribe();
   }, []);
@@ -230,20 +242,22 @@ export default function FabricStockPage() {
 
    const handleDelete = async () => {
     if (!currentItem) return;
-    try {
-        await deleteDoc(doc(db, "fabricStock", currentItem.id));
-        toast({
-            variant: "destructive",
-            title: "Fabric Deleted",
-            description: `${currentItem.type} has been removed from your inventory.`
-        });
-    } catch (error) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not delete fabric."
+    const fabricDoc = doc(db, "fabricStock", currentItem.id);
+    deleteDoc(fabricDoc)
+        .then(() => {
+            toast({
+                variant: "destructive",
+                title: "Fabric Deleted",
+                description: `${currentItem.type} has been removed from your inventory.`
+            });
         })
-    }
+        .catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: fabricDoc.path,
+                operation: "delete",
+            });
+            errorEmitter.emit("permission-error", permissionError);
+        });
   }
 
   return (
