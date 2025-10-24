@@ -25,7 +25,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-headline">Welcome Back</CardTitle>
           <CardDescription>
-            Enter your phone number to sign in
+            Enter your phone number and password to sign in
           </CardDescription>
         </CardHeader>
         <CardContent>

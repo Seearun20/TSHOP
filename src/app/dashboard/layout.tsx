@@ -31,11 +31,71 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
+function ChangePasswordDialog() {
+    const [open, setOpen] = useState(false);
+    const { toast } = useToast();
+
+    const handleChangePassword = (e: React.FormEvent) => {
+        e.preventDefault();
+        // This is a placeholder. In a real app, you would have logic
+        // to securely change the password on the backend.
+        toast({
+            title: "Password Updated (Simulated)",
+            description: "In a real app, your password would now be changed.",
+        });
+        setOpen(false);
+    }
+    
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Change Password</DropdownMenuItem>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+                <form onSubmit={handleChangePassword}>
+                    <DialogHeader>
+                        <DialogTitle>Change Password</DialogTitle>
+                        <DialogDescription>
+                            Enter your old and new passwords below.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="old-password" className="text-right">
+                                Old Password
+                            </Label>
+                            <Input id="old-password" type="password" className="col-span-3" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="new-password" className="text-right">
+                                New Password
+                            </Label>
+                            <Input id="new-password" type="password" className="col-span-3" />
+                        </div>
+                         <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="confirm-password" className="text-right">
+                                Confirm New
+                            </Label>
+                            <Input id="confirm-password" type="password" className="col-span-3" />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button type="submit">Save changes</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function DashboardLayout({
   children,
@@ -179,9 +239,21 @@ export default function DashboardLayout({
         <header className="flex items-center justify-between p-4 bg-background border-b">
            <SidebarTrigger className="md:hidden"/>
            <div className="flex-1"></div>
-           <Button variant="ghost" size="icon">
-              <User />
-           </Button>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                        <User />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <ChangePasswordDialog />
+                    <Link href="/" passHref>
+                      <DropdownMenuItem>Logout</DropdownMenuItem>
+                    </Link>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </header>
         <main className="p-4 sm:p-6 lg:p-8 bg-background">
             {children}
