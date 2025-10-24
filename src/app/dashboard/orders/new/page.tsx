@@ -41,8 +41,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
-import { ReadyMadeStockItem } from "../stock/readymade/page";
-import { FabricStockItem } from "../stock/fabric/page";
+import { ReadyMadeStockItem } from "@/app/dashboard/stock/readymade/page";
+import { FabricStockItem } from "@/app/dashboard/stock/fabric/page";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -85,16 +85,51 @@ type OrderFormValues = z.infer<typeof orderSchema>;
 type OrderItem = z.infer<typeof orderItemSchema>;
 
 // Measurement Schemas
-const pantMeasurements = z.object({ length: z.string().optional(), waist: z.string().optional(), hip: z.string().optional(), thigh: z.string().optional() });
-const shirtMeasurements = z.object({ length: z.string().optional(), chest: z.string().optional(), sleeve: z.string().optional(), shoulder: z.string().optional() });
-const suitMeasurements = z.object({ ...pantMeasurements.shape, ...shirtMeasurements.shape, blazerLength: z.string().optional() });
+const pantMeasurements = z.object({ 
+    length: z.string().optional(), 
+    waist: z.string().optional(), 
+    hip: z.string().optional(), 
+    thigh: z.string().optional(),
+    bottom: z.string().optional(),
+    latak: z.string().optional(),
+    mori: z.string().optional(),
+});
+const shirtMeasurements = z.object({ 
+    length: z.string().optional(), 
+    shoulder: z.string().optional(),
+    sleeve: z.string().optional(),
+    chest: z.string().optional(), 
+    waist: z.string().optional(), 
+    hip: z.string().optional(),
+    collar: z.string().optional(),
+});
+const blazerMeasurements = z.object({
+    length: z.string().optional(),
+    shoulder: z.string().optional(),
+    sleeve: z.string().optional(),
+    chest: z.string().optional(),
+    waist: z.string().optional(),
+    hip: z.string().optional(),
+    collar: z.string().optional(),
+});
+const pyjamaMeasurements = z.object({
+    length: z.string().optional(),
+    waist: z.string().optional(),
+    hip: z.string().optional(),
+    mori: z.string().optional(),
+    latak: z.string().optional(),
+    bottom: z.string().optional(),
+});
+
+
+const suitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape });
 const sherwaniMeasurements = z.object({ ...suitMeasurements.shape, innerKurtaLength: z.string().optional() });
-const blazerMeasurements = z.object({ blazerLength: z.string().optional(), chest: z.string().optional(), sleeve: z.string().optional(), shoulder: z.string().optional() });
+
 
 const apparelMeasurements: Record<string, z.ZodObject<any>> = {
   'Pant': pantMeasurements,
   'Shirt': shirtMeasurements,
-  'Kurta Pyjama': shirtMeasurements, // Assuming same as shirt for simplicity
+  'Kurta Pyjama': pyjamaMeasurements,
   '3pc Suit': suitMeasurements,
   '2pc Suit': suitMeasurements,
   'Sherwani': sherwaniMeasurements,
@@ -505,3 +540,5 @@ export default function NewOrderPage() {
     );
 }
 
+
+    
