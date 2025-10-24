@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -169,7 +170,7 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
         if (!customer) return;
 
         const apparelKey = getApparelKey(apparel);
-        const existingMeasurements = (customer.measurements as any)?.[apparelKey];
+        const existingMeasurements = (customer as any).measurements?.[apparelKey];
 
         if (existingMeasurements && typeof existingMeasurements === 'object') {
             setMeasurements(existingMeasurements);
@@ -210,7 +211,6 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
                 })
               })
               .catch(error => {
-               console.error("Failed to save measurements:", error);
                const permissionError = new FirestorePermissionError({
                    path: customerDoc.path,
                    operation: 'update',
@@ -401,7 +401,17 @@ export default function NewOrderPage() {
         // --- 1. READS ---
         const counterRef = doc(db, "counters", "orders");
         const counterDoc = await transaction.get(counterRef);
-        
+
+        const stockRefs = values.items
+            .filter(item => (item.type === 'readymade' || item.type === 'fabric') && item.details.stockId)
+            .map(item => {
+                const stockCollectionName = item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock';
+                return doc(db, stockCollectionName, item.details.stockId);
+            });
+
+        const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
+
+        // --- 2. WRITES (will be staged) ---
         let newOrderNumber = 1001;
         if (counterDoc.exists()) {
           newOrderNumber = counterDoc.data().lastOrderNumber + 1;
@@ -410,11 +420,8 @@ export default function NewOrderPage() {
         let finalCustomerId = values.customerId;
         let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
         
-        // --- 2. WRITES (will be staged) ---
-        
-        const newCustomerRef = values.customerType === 'new' ? doc(collection(db, "customers")) : null;
-
-        if (newCustomerRef && values.newCustomerName && values.newCustomerPhone) {
+        if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
+          const newCustomerRef = doc(collection(db, "customers"));
           transaction.set(newCustomerRef, {
             name: values.newCustomerName,
             phone: values.newCustomerPhone,
@@ -445,18 +452,15 @@ export default function NewOrderPage() {
 
         transaction.update(counterRef, { lastOrderNumber: newOrderNumber });
 
-        values.items.forEach(item => {
-          if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
-            const stockCollectionName = item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock';
-            const stockRef = doc(db, stockCollectionName, item.details.stockId);
-            const stockItem = (item.type === 'readymade' ? readyMadeStock : fabricStock).find(s => s.id === item.details.stockId);
-            if (stockItem) {
-              const currentStock = item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length;
-              const newQuantity = currentStock - item.quantity;
-              const fieldToUpdate = item.type === 'readymade' ? 'quantity' : 'length';
-              transaction.update(stockRef, { [fieldToUpdate]: newQuantity });
+        stockDocs.forEach((stockDoc, index) => {
+            const item = values.items.filter(i => (i.type === 'readymade' || i.type === 'fabric') && i.details.stockId)[index];
+            if (stockDoc.exists()) {
+                const stockData = stockDoc.data();
+                const fieldToUpdate = item.type === 'readymade' ? 'quantity' : 'length';
+                const currentStock = stockData[fieldToUpdate];
+                const newQuantity = currentStock - item.quantity;
+                transaction.update(stockDoc.ref, { [fieldToUpdate]: newQuantity });
             }
-          }
         });
         
         return {
@@ -489,7 +493,6 @@ export default function NewOrderPage() {
           advance: 0,
         });
       }).catch((error: any) => {
-        console.error("Transaction failed: ", error);
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'orders', 
           operation: 'create',
@@ -675,6 +678,8 @@ export default function NewOrderPage() {
         </form>
     </Form>
     );
+
+    
 
     
 
