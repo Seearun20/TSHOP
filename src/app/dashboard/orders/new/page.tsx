@@ -281,6 +281,10 @@ export default function NewOrderPage() {
         resolver: zodResolver(orderSchema),
         defaultValues: {
           customerType: 'existing',
+          customerId: '',
+          newCustomerName: '',
+          newCustomerPhone: '',
+          deliveryDate: undefined,
           items: [],
           advance: 0,
         },
@@ -505,7 +509,7 @@ export default function NewOrderPage() {
                             <div className="p-4 border rounded-md space-y-2">
                                <h4 className="font-medium">Ready-Made Garment</h4>
                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                   <Select onValueChange={id => setSelectedReadyMade(s => ({ ...s, item: readyMadeStock.find(i => i.id === id)!, quantity: 1, price: 0 }))}>
+                                   <Select onValueChange={id => setSelectedReadyMade(s => ({ item: readyMadeStock.find(i => i.id === id)!, quantity: 1, price: 0 }))}>
                                        <SelectTrigger className="md:col-span-2"><SelectValue placeholder="Select ready-made item..."/></SelectTrigger>
                                        <SelectContent>{readyMadeStock.map(s => <SelectItem key={s.id} value={s.id}>{s.item} - {s.size} ({s.quantity} left)</SelectItem>)}</SelectContent>
                                    </Select>
@@ -519,7 +523,7 @@ export default function NewOrderPage() {
                              <div className="p-4 border rounded-md space-y-2">
                                <h4 className="font-medium">Fabric</h4>
                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                   <Select onValueChange={id => setSelectedFabric(s => ({ ...s, item: fabricStock.find(i => i.id === id)!, length: 1, price: 0 }))}>
+                                   <Select onValueChange={id => setSelectedFabric(s => ({ item: fabricStock.find(i => i.id === id)!, length: 1, price: 0 }))}>
                                        <SelectTrigger className="md:col-span-2"><SelectValue placeholder="Select fabric..."/></SelectTrigger>
                                        <SelectContent>{fabricStock.map(s => <SelectItem key={s.id} value={s.id}>{s.type} ({s.length}m left)</SelectItem>)}</SelectContent>
                                    </Select>
@@ -533,7 +537,7 @@ export default function NewOrderPage() {
                              <div className="p-4 border rounded-md space-y-2">
                                <h4 className="font-medium">Accessory</h4>
                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                   <Input value={accessory?.name || ''} onChange={e => setAccessory(s => ({ ...s!, name: e.target.value }))} placeholder="Accessory Name" className="md:col-span-2"/>
+                                   <Input value={accessory?.name || ''} onChange={e => setAccessory(s => ({ ...s!, name: e.target.value, quantity: s?.quantity || 1, price: s?.price || 0 }))} placeholder="Accessory Name" className="md:col-span-2"/>
                                    <Input type="text" inputMode="numeric" value={accessory?.quantity || ''} onChange={e => setAccessory(s => ({...s!, quantity: Number(e.target.value.replace(/[^0-9]/g, '')) }))} placeholder="Qty"/>
                                    <Input type="text" inputMode="numeric" value={accessory?.price || ''} onChange={e => setAccessory(s => ({...s!, price: Number(e.target.value.replace(/[^0-9]/g, '')) }))} placeholder="Price per item"/>
                                </div>
