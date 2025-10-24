@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -150,13 +149,38 @@ const apparelMeasurements: Record<string, z.ZodObject<any>> = {
   'Blazer': blazerMeasurements,
 };
 
-function StitchingServiceDialog({ onAddItem, customerId }: { onAddItem: (item: OrderItem) => void, customerId?: string }) {
+function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddItem: (item: OrderItem) => void, customerId?: string, customers: Customer[] }) {
     const [open, setOpen] = useState(false);
     const [apparel, setApparel] = useState('');
     const [price, setPrice] = useState(0);
     const [isOwnFabric, setIsOwnFabric] = useState(false);
     const [measurements, setMeasurements] = useState<Record<string, string>>({});
     const measurementFields = apparel ? Object.keys(apparelMeasurements[apparel]?.shape || {}) : [];
+    const { toast } = useToast();
+
+    const handleFetchMeasurements = () => {
+        if (!customerId || !apparel) return;
+        const customer = customers.find(c => c.id === customerId);
+        if (!customer) return;
+
+        const apparelKey = apparel.replace(/ /g, '_');
+        const existingMeasurements = customer.measurements?.[apparelKey];
+
+        if (existingMeasurements && typeof existingMeasurements === 'object') {
+            setMeasurements(existingMeasurements);
+            toast({
+                title: 'Success!',
+                description: `Fetched measurements for ${apparel} for ${customer.name}.`
+            })
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Not Found',
+                description: `No saved measurements found for ${apparel} for this customer.`
+            })
+        }
+    }
+
 
     const handleAdd = async () => {
         if (!apparel || price <= 0) {
@@ -167,8 +191,9 @@ function StitchingServiceDialog({ onAddItem, customerId }: { onAddItem: (item: O
         // Save measurements to customer if a customer is selected
         if (customerId && Object.keys(measurements).length > 0) {
             const customerDoc = doc(db, "customers", customerId);
+            const apparelKey = apparel.replace(/ /g, '_');
             await updateDoc(customerDoc, { 
-                [`measurements.${apparel.replace(/ /g, '_')}`]: measurements 
+                [`measurements.${apparelKey}`]: measurements 
             }, { merge: true });
         }
 
@@ -200,7 +225,7 @@ function StitchingServiceDialog({ onAddItem, customerId }: { onAddItem: (item: O
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                            <Label>Apparel Type</Label>
-                           <Select onValueChange={setApparel}>
+                           <Select onValueChange={setApparel} value={apparel}>
                                <SelectTrigger><SelectValue placeholder="Select apparel"/></SelectTrigger>
                                <SelectContent>
                                    {Object.keys(apparelMeasurements).map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
@@ -221,7 +246,14 @@ function StitchingServiceDialog({ onAddItem, customerId }: { onAddItem: (item: O
 
                     {apparel && measurementFields.length > 0 && (
                         <div>
-                            <h4 className="font-medium mb-2">Measurements ({apparel})</h4>
+                             <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-medium">Measurements ({apparel})</h4>
+                                {customerId && apparel && (
+                                    <Button type="button" variant="link" onClick={handleFetchMeasurements}>
+                                        Fetch Measurements
+                                    </Button>
+                                )}
+                            </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {measurementFields.map(field => (
                                      <div key={field} className="space-y-2">
@@ -501,7 +533,7 @@ export default function NewOrderPage() {
                         <CardContent className="space-y-6">
                             {/* Stitching Service */}
                             <div className="p-4 border rounded-md">
-                               <StitchingServiceDialog onAddItem={handleAddItem} customerId={customerId}/>
+                               <StitchingServiceDialog onAddItem={handleAddItem} customerId={customerId} customers={customers}/>
                             </div>
                             
                             {/* Ready-Made */}
@@ -615,4 +647,5 @@ export default function NewOrderPage() {
         </form>
     </Form>
     );
-}
+
+    
