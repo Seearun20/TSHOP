@@ -59,13 +59,18 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Invoice } from "@/components/dashboard/invoice";
-import { collection, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, arrayUnion } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Customer } from "@/app/dashboard/customers/page";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
+
+export interface Payment {
+    date: string;
+    amount: number;
+}
 
 export interface OrderItem {
   type: 'stitching' | 'readymade' | 'fabric' | 'accessory';
@@ -86,6 +91,7 @@ export interface Order {
   balance: number;
   status: "In Progress" | "Ready" | "Delivered" | "Cancelled";
   createdAt: { seconds: number; nanoseconds: number; };
+  payments?: Payment[];
   // Properties to be added from customer data
   customerName?: string;
 }
@@ -130,59 +136,64 @@ function UpdateStatusDialog({ order, setOpen, onUpdate }: { order: Order; setOpe
   );
 }
 
-function MeasurementReceiptDialog({ order, customer }: { order: Order, customer?: Customer }) {
-    const stitchingItems = order.items.filter(item => item.type === 'stitching' && item.details?.measurements);
-    
-    const handlePrint = () => {
-        setTimeout(() => window.print(), 100);
-    }
-    
-    if (stitchingItems.length === 0) {
-        return (
-             <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>No Measurements</DialogTitle>
-                    <DialogDescription>There are no stitching items with measurements recorded for order #{order.orderNumber}.</DialogDescription>
-                </DialogHeader>
-             </DialogContent>
-        )
-    }
+function ReceivePaymentDialog({ order, setOpen }: { order: Order, setOpen: (open: boolean) => void; }) {
+  const { toast } = useToast();
+  const [amount, setAmount] = useState<number | ''>('');
+  const formatCurrency = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
+  
+  const handlePayment = async () => {
+      if (!amount || amount <= 0) {
+          toast({ variant: 'destructive', title: "Invalid Amount", description: "Please enter a valid payment amount." });
+          return;
+      }
+      if (amount > order.balance) {
+          toast({ variant: 'destructive', title: "Amount Exceeds Balance", description: `Payment cannot be more than the due amount of ${formatCurrency(order.balance)}.` });
+          return;
+      }
+
+      const orderDoc = doc(db, "orders", order.id);
+      const newPayment: Payment = {
+          date: new Date().toISOString(),
+          amount: Number(amount)
+      };
+      const newAdvance = order.advance + Number(amount);
+      const newBalance = order.subtotal - newAdvance;
+
+      try {
+          await updateDoc(orderDoc, {
+              advance: newAdvance,
+              balance: newBalance,
+              payments: arrayUnion(newPayment)
+          });
+          toast({
+              title: "Payment Received!",
+              description: `${formatCurrency(Number(amount))} received for order #${order.orderNumber}. New balance: ${formatCurrency(newBalance)}.`,
+          });
+          setOpen(false);
+      } catch (error) {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({ path: orderDoc.path, operation: 'update' }));
+      }
+  };
 
   return (
-    <DialogContent className="max-w-md" onOpenAutoFocus={handlePrint}>
-      <div className="print-content text-black p-4">
-        <DialogHeader className="text-center">
-            <DialogTitle className="font-bold text-xl">Measurement Slip</DialogTitle>
-            <DialogDescription className="!text-black">Order #{order.orderNumber}</DialogDescription>
-        </DialogHeader>
-        <div className="my-4 border-t border-dashed border-black"></div>
-        <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span>Customer:</span><span className="font-medium">{customer?.name}</span></div>
-            <div className="flex justify-between"><span>Delivery:</span><span className="font-medium">{order.deliveryDate ? new Date(order.deliveryDate.seconds * 1000).toLocaleDateString() : 'N/A'}</span></div>
-        </div>
-        <div className="my-4 border-t border-dashed border-black"></div>
-        
-        {stitchingItems.map((item, index) => (
-            <div key={index} className="space-y-3 mt-4 break-inside-avoid">
-                <h4 className="font-semibold text-center uppercase tracking-wider">{item.details.apparel}</h4>
-                <div className="grid grid-cols-2 gap-x-8 gap-y-2 font-mono text-sm">
-                    {Object.entries(item.details.measurements).map(([key, value]) => value && (
-                        <div key={key} className="flex justify-between items-end border-b border-dotted">
-                            <span className="capitalize text-gray-600">{key.replace(/([A-Z])/g, ' $1')}:</span>
-                            <span className="font-bold">{value as string}</span>
-                        </div>
-                    ))}
-                </div>
-                 {item.details.isOwnFabric && <p className="text-center text-xs font-semibold pt-2">(Customer's Own Fabric)</p>}
-            </div>
-        ))}
-         <div className="my-4 border-t border-dashed border-black"></div>
-         <p className="text-xs text-center text-gray-500">Raghav Tailor & Fabric | {new Date().toLocaleString()}</p>
-      </div>
-      <Button onClick={handlePrint} className="w-full print:hidden mt-4">
-        <Printer className="mr-2 h-4 w-4" /> Print
-      </Button>
-    </DialogContent>
+      <DialogContent>
+          <DialogHeader>
+              <DialogTitle>Receive Payment for Order #{order.orderNumber}</DialogTitle>
+              <DialogDescription>
+                  Current balance due: <span className="font-medium text-destructive">{formatCurrency(order.balance)}</span>
+              </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+              <div className="space-y-2">
+                  <Label htmlFor="payment-amount">Payment Amount</Label>
+                  <Input id="payment-amount" type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} placeholder="Enter amount received" />
+              </div>
+          </div>
+          <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={handlePayment} disabled={!amount || amount <= 0}>Confirm Payment</Button>
+          </DialogFooter>
+      </DialogContent>
   );
 }
 
@@ -199,6 +210,7 @@ export default function OrdersPage() {
       status: false,
       receipt: false,
       cancel: false,
+      payment: false,
   });
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -411,6 +423,9 @@ export default function OrdersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                           <DropdownMenuItem onSelect={() => handleActionClick(order, 'payment')} disabled={order.balance <= 0}>
+                            Receive Payment
+                          </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => handleActionClick(order, 'invoice')}>
                             Generate Invoice
                           </DropdownMenuItem>
@@ -439,6 +454,9 @@ export default function OrdersPage() {
             <Dialog open={dialogs.status} onOpenChange={(open) => setDialogs(p => ({...p, status: open}))}>
                <UpdateStatusDialog order={currentOrder} setOpen={(open) => setDialogs(p => ({...p, status: open}))} onUpdate={handleUpdateStatus}/>
             </Dialog>
+            <Dialog open={dialogs.payment} onOpenChange={(open) => setDialogs(p => ({...p, payment: open}))}>
+               <ReceivePaymentDialog order={currentOrder} setOpen={(open) => setDialogs(p => ({...p, payment: open}))} />
+            </Dialog>
             <AlertDialog open={dialogs.cancel} onOpenChange={(open) => setDialogs(p => ({...p, cancel: open}))}>
                  <AlertDialogContent>
                     <AlertDialogHeader>
@@ -461,3 +479,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
