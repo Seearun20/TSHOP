@@ -1,11 +1,17 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { 
+  RecaptchaVerifier, 
+  signInWithPhoneNumber,
+  ConfirmationResult
+} from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,13 +33,21 @@ const OTPSchema = z.object({
 const PhoneSchema = z.object({
   phone: z
     .string()
-    .min(10, { message: "Phone number must be at least 10 digits." }),
+    .min(10, { message: "Phone number must be at least 10 digits." })
+    .transform(val => `+91${val}`), // Assuming Indian phone numbers
 });
+
+declare global {
+    interface Window {
+        recaptchaVerifier?: RecaptchaVerifier;
+        confirmationResult?: ConfirmationResult;
+    }
+}
 
 function PhoneStep({
   onPhoneSubmit,
 }: {
-  onPhoneSubmit: (phoneNumber: string) => void;
+  onPhoneSubmit: (confirmationResult: ConfirmationResult) => void;
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -43,17 +57,37 @@ function PhoneStep({
     defaultValues: { phone: "" },
   });
 
-  const handleSubmit = (values: z.infer<typeof PhoneSchema>) => {
+  useEffect(() => {
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+      'size': 'invisible',
+      'callback': () => {
+        // reCAPTCHA solved, allow signInWithPhoneNumber.
+      }
+    });
+  }, []);
+
+
+  const handleSubmit = async (values: z.infer<typeof PhoneSchema>) => {
     setIsSubmitting(true);
-    // Simulate API call to send OTP
-    setTimeout(() => {
-      toast({
-        title: "OTP Sent!",
-        description: `An OTP has been sent to ${values.phone}. (Hint: Use 123456)`,
-      });
-      setIsSubmitting(false);
-      onPhoneSubmit(values.phone);
-    }, 1000);
+    try {
+        const appVerifier = window.recaptchaVerifier!;
+        const confirmationResult = await signInWithPhoneNumber(auth, values.phone, appVerifier);
+        window.confirmationResult = confirmationResult;
+        toast({
+            title: "OTP Sent!",
+            description: `An OTP has been sent to ${values.phone}.`,
+        });
+        onPhoneSubmit(confirmationResult);
+    } catch (error: any) {
+        console.error("Error sending OTP:", error);
+        toast({
+            variant: "destructive",
+            title: "Failed to send OTP",
+            description: error.message || "Please try again.",
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   return (
@@ -66,12 +100,16 @@ function PhoneStep({
             <FormItem>
               <FormLabel>Phone Number</FormLabel>
               <FormControl>
-                <Input placeholder="Your 10-digit phone number" {...field} />
+                <div className="flex">
+                    <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">+91</span>
+                    <Input placeholder="Your 10-digit phone number" {...field} onChange={e => field.onChange(e.target.value.replace(/[^0-9]/g, ''))} />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+        <div id="recaptcha-container"></div>
         <Button type="submit" className="w-full font-bold" disabled={isSubmitting}>
           {isSubmitting ? <Loader2 className="animate-spin" /> : "Send OTP"}
         </Button>
@@ -82,8 +120,10 @@ function PhoneStep({
 
 function OtpStep({
   onBack,
+  confirmationResult,
 }: {
   onBack: () => void;
+  confirmationResult: ConfirmationResult;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -94,29 +134,29 @@ function OtpStep({
     defaultValues: { otp: "" },
   });
 
-  const handleSubmit = (values: z.infer<typeof OTPSchema>) => {
+  const handleSubmit = async (values: z.infer<typeof OTPSchema>) => {
     setIsSubmitting(true);
-    // Simulate API call to verify OTP
-    setTimeout(() => {
-      if (values.otp === "123456") {
+    try {
+        await confirmationResult.confirm(values.otp);
         toast({
-          title: "Success!",
-          description: "You have been logged in successfully.",
+            title: "Success!",
+            description: "You have been logged in successfully.",
         });
         router.push("/dashboard");
-      } else {
+    } catch (error: any) {
+        console.error("Error verifying OTP:", error);
         toast({
-          variant: "destructive",
-          title: "Invalid OTP",
-          description: "The OTP you entered is incorrect. Please try again.",
+            variant: "destructive",
+            title: "Invalid OTP",
+            description: "The OTP you entered is incorrect. Please try again.",
         });
-        form.setError("otp", {
+         form.setError("otp", {
           type: "manual",
           message: "Incorrect OTP. Please try again.",
         });
+    } finally {
         setIsSubmitting(false);
-      }
-    }, 1000);
+    }
   };
 
   return (
@@ -129,7 +169,7 @@ function OtpStep({
             <FormItem>
               <FormLabel>Enter OTP</FormLabel>
               <FormControl>
-                <Input placeholder="123456" {...field} />
+                <Input placeholder="6-digit OTP" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -148,18 +188,21 @@ function OtpStep({
 
 export function LoginForm() {
   const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
 
-  const handlePhoneSubmit = (phoneNumber: string) => {
+  const handlePhoneSubmit = (result: ConfirmationResult) => {
+    setConfirmationResult(result);
     setStep("otp");
   };
 
   const handleBack = () => {
     setStep("phone");
+    setConfirmationResult(null);
   };
 
-  return step === "phone" ? (
+  return step === "phone" || !confirmationResult ? (
     <PhoneStep onPhoneSubmit={handlePhoneSubmit} />
   ) : (
-    <OtpStep onBack={handleBack} />
+    <OtpStep onBack={handleBack} confirmationResult={confirmationResult} />
   );
 }
