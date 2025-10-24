@@ -31,12 +31,12 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Customer } from "@/app/dashboard/customers/page";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, addDoc, updateDoc, writeBatch, runTransaction } from "firebase/firestore";
+import { collection, onSnapshot, doc, addDoc, updateDoc, runTransaction } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, PlusCircle, Trash2, X } from "lucide-react";
+import { CalendarIcon, PlusCircle, Printer, Trash2, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -56,7 +56,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
+import { Order } from "../page";
+
 
 const orderItemSchema = z.object({
   type: z.enum(['stitching', 'readymade', 'fabric', 'accessory']),
@@ -236,10 +237,10 @@ function StitchingServiceDialog({ onAddItem, customerId }: { onAddItem: (item: O
 
 export default function NewOrderPage() {
     const { toast } = useToast();
-    const router = useRouter();
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [readyMadeStock, setReadyMadeStock] = useState<ReadyMadeStockItem[]>([]);
     const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
+    const [lastCreatedOrder, setLastCreatedOrder] = useState<Order | null>(null);
 
     const [selectedReadyMade, setSelectedReadyMade] = useState<{item: ReadyMadeStockItem, quantity: number, price: number} | null>(null);
     const [selectedFabric, setSelectedFabric] = useState<{item: FabricStockItem, length: number, price: number} | null>(null);
@@ -325,12 +326,13 @@ export default function NewOrderPage() {
     
     const onSubmit = async (values: OrderFormValues) => {
         let finalCustomerId = values.customerId;
+        let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
     
         try {
           const newOrderId = await runTransaction(db, async (transaction) => {
-            // Create new customer if needed
+            let newCustomerDocRef: any;
             if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
-              const newCustomerDocRef = doc(collection(db, "customers"));
+              newCustomerDocRef = doc(collection(db, "customers"));
               transaction.set(newCustomerDocRef, {
                 name: values.newCustomerName,
                 phone: values.newCustomerPhone,
@@ -338,23 +340,22 @@ export default function NewOrderPage() {
                 measurements: {}
               });
               finalCustomerId = newCustomerDocRef.id;
+              finalCustomerName = values.newCustomerName;
             }
     
             if (!finalCustomerId) {
               throw new Error("Customer not selected or created.");
             }
     
-            // Get the next order number
             const counterRef = doc(db, "counters", "orders");
             const counterDoc = await transaction.get(counterRef);
             
-            let newOrderNumber = 1001; // Default starting number
+            let newOrderNumber = 1001;
             if (counterDoc.exists()) {
               newOrderNumber = counterDoc.data().lastOrderNumber + 1;
             }
             transaction.set(counterRef, { lastOrderNumber: newOrderNumber }, { merge: true });
     
-            // Update stock levels
             values.items.forEach(item => {
               if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
                 const stockRef = doc(db, item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock', item.details.stockId);
@@ -367,9 +368,8 @@ export default function NewOrderPage() {
               }
             });
     
-            // Create order document
             const orderDocRef = doc(collection(db, "orders"));
-            transaction.set(orderDocRef, {
+            const newOrderData = {
               orderNumber: newOrderNumber,
               customerId: finalCustomerId,
               deliveryDate: values.deliveryDate || null,
@@ -379,25 +379,22 @@ export default function NewOrderPage() {
               balance: balance,
               status: "In Progress",
               createdAt: new Date(),
-            });
-    
+            };
+            transaction.set(orderDocRef, newOrderData);
+            
+            // For post-creation actions
+            setLastCreatedOrder({
+              id: orderDocRef.id,
+              customerName: finalCustomerName,
+              ...newOrderData,
+            } as Order);
+
             return orderDocRef.id;
           });
     
           toast({
-            title: "Order Created!",
-            description: "What would you like to do next?",
-            duration: 10000,
-            action: (
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/orders?invoice=${newOrderId}`)}>
-                  Generate Invoice
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/orders?receipt=${newOrderId}`)}>
-                  Measurement Slip
-                </Button>
-              </div>
-            ),
+            title: "Order Created Successfully!",
+            description: `Order #${(lastCreatedOrder?.orderNumber || '')} has been saved.`,
           });
           form.reset();
     
@@ -412,6 +409,42 @@ export default function NewOrderPage() {
       }
 
     const formatCurrency = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
+
+    const handlePrint = (type: 'invoice' | 'receipt') => {
+      if (!lastCreatedOrder) return;
+      const url = `/print/${type}/${lastCreatedOrder.id}`;
+      window.open(url, '_blank');
+    }
+
+    const startNewOrder = () => {
+        setLastCreatedOrder(null);
+        form.reset({
+            customerType: 'existing',
+            items: [],
+            advance: 0,
+        });
+    }
+
+    if (lastCreatedOrder) {
+        return (
+            <div className="space-y-8">
+                <PageHeader title={`Order #${lastCreatedOrder.orderNumber} Created`} subtitle="The order has been successfully saved."/>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>What's next?</CardTitle>
+                        <CardDescription>You can now generate the invoice or measurement slip for the tailor.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col sm:flex-row gap-4">
+                        <Button onClick={() => handlePrint('invoice')}><Printer className="mr-2"/>Generate Invoice</Button>
+                        <Button onClick={() => handlePrint('receipt')} variant="outline"><Printer className="mr-2"/>Generate Measurement Slip</Button>
+                    </CardContent>
+                    <CardFooter>
+                         <Button onClick={startNewOrder}><PlusCircle className="mr-2"/>Create Another Order</Button>
+                    </CardFooter>
+                </Card>
+            </div>
+        )
+    }
 
     return (
     <Form {...form}>
@@ -513,7 +546,6 @@ export default function NewOrderPage() {
                         </CardContent>
                     </Card>
 
-                    {/* Order Items */}
                     {fields.length > 0 && (
                         <Card>
                              <CardHeader><CardTitle>Order Items</CardTitle></CardHeader>
