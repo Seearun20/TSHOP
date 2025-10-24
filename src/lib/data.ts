@@ -62,21 +62,6 @@ export const recentOrders = [
   },
 ];
 
-export interface Employee {
-    id: string;
-    name: string;
-    role: string;
-    salary: number;
-    balance: number;
-    leaves: number;
-}
-
-export const employees: Employee[] = [
-    { id: "EMP001", name: "Suresh Kumar", role: "Master Tailor", salary: 25000, balance: 0, leaves: 2 },
-    { id: "EMP002", name: "Ramesh Jain", role: "Assistant Tailor", salary: 18000, balance: 500, leaves: 1 },
-    { id: "EMP003", name: "Vikas Mehra", role: "Salesman", salary: 15000, balance: 0, leaves: 4 },
-];
-
 export const serviceCharges = {
     'Shirt': 500,
     'Pant': 600,
@@ -88,5 +73,3 @@ export const serviceCharges = {
     'Blazer': 2500,
     'Sherwani': 7000
 };
-
-    
