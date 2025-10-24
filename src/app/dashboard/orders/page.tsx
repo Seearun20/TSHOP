@@ -65,6 +65,7 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Customer } from "@/app/dashboard/customers/page";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Input } from "@/components/ui/input";
 
 export interface OrderItem {
   type: 'stitching' | 'readymade' | 'fabric' | 'accessory';
@@ -176,7 +177,7 @@ function MeasurementReceiptDialog({ order, customer }: { order: Order, customer?
             </div>
         ))}
          <div className="my-4 border-t border-dashed border-black"></div>
-         <p className="text-xs text-center text-gray-500">StitchSavvy | {new Date().toLocaleString()}</p>
+         <p className="text-xs text-center text-gray-500">Raghav Tailor & Fabric | {new Date().toLocaleString()}</p>
       </div>
       <Button onClick={handlePrint} className="w-full print:hidden mt-4">
         <Printer className="mr-2 h-4 w-4" /> Print
@@ -199,6 +200,7 @@ export default function OrdersPage() {
       receipt: false,
       cancel: false,
   });
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const ordersUnsub = onSnapshot(collection(db, "orders"), (snapshot) => {
@@ -223,33 +225,46 @@ export default function OrdersPage() {
 
   const combinedOrders = useMemo(() => {
     const customerMap = new Map(customers.map(c => [c.id, c.name]));
-    return orders.map(order => ({
+    const allOrders = orders.map(order => ({
       ...order,
       customerName: customerMap.get(order.customerId) || "Unknown Customer"
-    })).sort((a,b) => b.createdAt.seconds - a.createdAt.seconds);
-  }, [orders, customers]);
+    })).sort((a,b) => b.orderNumber - a.orderNumber);
+
+    if (!searchQuery) {
+      return allOrders;
+    }
+
+    return allOrders.filter(order => {
+      const query = searchQuery.toLowerCase();
+      const customerName = order.customerName?.toLowerCase() || '';
+      const orderNumber = String(order.orderNumber);
+      return customerName.includes(query) || orderNumber.includes(query);
+    });
+
+  }, [orders, customers, searchQuery]);
 
 
   useEffect(() => {
     const invoiceId = searchParams.get('invoice');
     const receiptId = searchParams.get('receipt');
-    const url = new URL(window.location.href);
+    
+    if ((invoiceId || receiptId) && combinedOrders.length > 0) {
+      const url = new URL(window.location.href);
+      let orderToOpen;
 
-    if (invoiceId && combinedOrders.length > 0) {
-      const order = combinedOrders.find(o => o.id === invoiceId);
-      if (order) {
-        handleActionClick(order, 'invoice');
+      if (invoiceId) {
+        orderToOpen = combinedOrders.find(o => o.id === invoiceId);
+        if (orderToOpen) handleActionClick(orderToOpen, 'invoice');
         url.searchParams.delete('invoice');
-        router.replace(url.toString(), { scroll: false });
       }
-    }
-    if (receiptId && combinedOrders.length > 0) {
-      const order = combinedOrders.find(o => o.id === receiptId);
-      if (order) {
-        handleActionClick(order, 'receipt');
+
+      if (receiptId) {
+        orderToOpen = combinedOrders.find(o => o.id === receiptId);
+        if (orderToOpen) handleActionClick(orderToOpen, 'receipt');
         url.searchParams.delete('receipt');
-        router.replace(url.toString(), { scroll: false });
       }
+
+      router.replace(url.toString(), { scroll: false });
     }
   }, [searchParams, combinedOrders, router]);
 
@@ -340,6 +355,14 @@ export default function OrdersPage() {
           <CardDescription>
             A list of all past and present orders.
           </CardDescription>
+          <div className="pt-2">
+            <Input
+              placeholder="Search by Order # or Customer Name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -438,5 +461,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    
