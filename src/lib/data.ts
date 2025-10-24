@@ -1,4 +1,5 @@
 
+
 // Mock data for StitchSavvy
 
 export const financialSummary = {
@@ -61,60 +62,6 @@ export const recentOrders = [
   },
 ];
 
-export interface Order {
-    id: string;
-    customerName: string;
-    deliveryDate: string;
-    total: number;
-    paid: number;
-    balance: number;
-    status: string;
-    items: string;
-    measurements?: {
-        [key: string]: string | undefined;
-    };
-}
-
-
-export const orders: Order[] = [
-  { 
-    id: "ORD101", 
-    customerName: "Arjun Sharma", 
-    deliveryDate: "2024-08-15", 
-    total: 3500, 
-    paid: 3500, 
-    balance: 0, 
-    status: "Delivered",
-    items: "Kurta Pyjama Stitching",
-    measurements: {
-        length: '42',
-        chest: '44',
-        sleeve: '25',
-        shoulder: '18',
-    }
-  },
-  { 
-    id: "ORD102", 
-    customerName: "Priya Singh", 
-    deliveryDate: "2024-08-20", 
-    total: 8500, 
-    paid: 5000, 
-    balance: 3500, 
-    status: "In Progress",
-    items: "3pc Suit (Fabric + Stitching)"
-  },
-  { 
-    id: "ORD103", 
-    customerName: "Rohan Verma", 
-    deliveryDate: "2024-08-18", 
-    total: 1200, 
-    paid: 1200, 
-    balance: 0, 
-    status: "Ready",
-    items: "Shirt Stitching"
-  },
-];
-
 export interface Employee {
     id: string;
     name: string;
@@ -141,3 +88,5 @@ export const serviceCharges = {
     'Blazer': 2500,
     'Sherwani': 7000
 };
+
+    

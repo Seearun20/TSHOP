@@ -26,7 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { orders, type Order } from "@/lib/data";
 import { MoreHorizontal, PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +35,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -49,8 +47,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
-import { Separator } from "@/components/ui/separator";
+import { useState, useEffect, useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -61,18 +58,40 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Invoice } from "@/components/dashboard/invoice";
+import { collection, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
+import { Customer } from "@/app/dashboard/customers/page";
+import { useRouter, useSearchParams } from "next/navigation";
 
-function UpdateStatusDialog({ order, setOpen }: { order: Order; setOpen: (open: boolean) => void }) {
+export interface OrderItem {
+  type: 'stitching' | 'readymade' | 'fabric' | 'accessory';
+  name: string;
+  price: number;
+  quantity: number;
+  details?: any;
+}
+
+export interface Order {
+  id: string;
+  customerId: string;
+  deliveryDate?: { seconds: number; nanoseconds: number; } | null;
+  items: OrderItem[];
+  subtotal: number;
+  advance: number;
+  balance: number;
+  status: "In Progress" | "Ready" | "Delivered" | "Cancelled";
+  createdAt: { seconds: number; nanoseconds: number; };
+  // Properties to be added from customer data
+  customerName?: string;
+}
+
+function UpdateStatusDialog({ order, setOpen, onUpdate }: { order: Order; setOpen: (open: boolean) => void; onUpdate: (id: string, status: Order['status']) => void; }) {
   const [status, setStatus] = useState(order.status);
-  const { toast } = useToast();
-
+  
   const handleUpdate = () => {
-    // Here you would typically make an API call to update the status
-    console.log(`Updating status for order ${order.id} to ${status}`);
-    toast({
-      title: "Status Updated!",
-      description: `Order ${order.id} has been marked as ${status}.`,
-    });
+    onUpdate(order.id, status);
     setOpen(false);
   };
 
@@ -81,13 +100,13 @@ function UpdateStatusDialog({ order, setOpen }: { order: Order; setOpen: (open: 
       <DialogHeader>
         <DialogTitle>Update Order Status</DialogTitle>
         <DialogDescription>
-          Change the status for order #{order.id}.
+          Change the status for order #{order.id.substring(0, 6)}.
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-4">
         <div className="space-y-2">
           <Label htmlFor="status">New Status</Label>
-          <Select value={status} onValueChange={setStatus}>
+          <Select value={status} onValueChange={(value) => setStatus(value as Order['status'])}>
             <SelectTrigger id="status">
               <SelectValue placeholder="Select a status" />
             </SelectTrigger>
@@ -95,66 +114,173 @@ function UpdateStatusDialog({ order, setOpen }: { order: Order; setOpen: (open: 
               <SelectItem value="In Progress">In Progress</SelectItem>
               <SelectItem value="Ready">Ready</SelectItem>
               <SelectItem value="Delivered">Delivered</SelectItem>
+              <SelectItem value="Cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
-      <Button onClick={handleUpdate}>Update Status</Button>
+       <DialogFooter>
+        <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+        <Button onClick={handleUpdate}>Update Status</Button>
+      </DialogFooter>
     </DialogContent>
   );
 }
 
-function MeasurementReceiptDialog({ order }: { order: Order }) {
-    if (!order.measurements) {
+function MeasurementReceiptDialog({ order, customer }: { order: Order, customer?: Customer }) {
+    const stitchingItems = order.items.filter(item => item.type === 'stitching' && item.details?.measurements);
+    
+    if (stitchingItems.length === 0) {
         return (
              <DialogContent>
                 <DialogHeader>
                     <DialogTitle>No Measurements</DialogTitle>
-                    <DialogDescription>There are no measurements recorded for order #{order.id}.</DialogDescription>
+                    <DialogDescription>There are no stitching items with measurements recorded for order #{order.id.substring(0,6)}.</DialogDescription>
                 </DialogHeader>
              </DialogContent>
         )
     }
+
+    const handlePrint = () => {
+        setTimeout(() => window.print(), 100);
+    }
+
   return (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Measurement Receipt for #{order.id}</DialogTitle>
-        <DialogDescription>Customer: {order.customerName}</DialogDescription>
-      </DialogHeader>
-      <div className="font-mono text-sm space-y-2 pt-4">
-         {Object.entries(order.measurements).map(([key, value]) => value && (
-            <div key={key} className="flex justify-between">
-                <span className="capitalize text-muted-foreground">{key}:</span>
-                <span>{value}</span>
+    <DialogContent className="max-w-md" onOpenAutoFocus={handlePrint}>
+      <div className="print-content text-black">
+        <DialogHeader className="text-center">
+            <DialogTitle className="font-bold text-xl">Measurement Slip</DialogTitle>
+            <DialogDescription className="!text-black">Order #{order.id.substring(0, 6)}</DialogDescription>
+        </DialogHeader>
+        <div className="my-4 border-t border-dashed border-black"></div>
+        <div className="space-y-2 text-sm">
+            <div className="flex justify-between"><span>Customer:</span><span className="font-medium">{customer?.name}</span></div>
+            <div className="flex justify-between"><span>Delivery:</span><span className="font-medium">{order.deliveryDate ? new Date(order.deliveryDate.seconds * 1000).toLocaleDateString() : 'N/A'}</span></div>
+        </div>
+        <div className="my-4 border-t border-dashed border-black"></div>
+        
+        {stitchingItems.map((item, index) => (
+            <div key={index} className="space-y-3 mt-4">
+                <h4 className="font-semibold text-center uppercase tracking-wider">{item.details.apparel}</h4>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-2 font-mono text-sm">
+                    {Object.entries(item.details.measurements).map(([key, value]) => value && (
+                        <div key={key} className="flex justify-between items-end border-b border-dotted">
+                            <span className="capitalize text-gray-600">{key.replace(/([A-Z])/g, ' $1')}:</span>
+                            <span className="font-bold">{value as string}</span>
+                        </div>
+                    ))}
+                </div>
             </div>
-         ))}
+        ))}
+         <div className="my-4 border-t border-dashed border-black"></div>
+         <p className="text-xs text-center text-gray-500">StitchSavvy | {new Date().toLocaleString()}</p>
       </div>
+      <Button onClick={handlePrint} className="w-full print:hidden mt-4">
+        <PlusCircle className="mr-2 h-4 w-4" /> Print
+      </Button>
     </DialogContent>
   );
 }
 
 export default function OrdersPage() {
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [dialogs, setDialogs] = useState({
       invoice: false,
       status: false,
       receipt: false,
+      cancel: false,
   });
+
+  useEffect(() => {
+    const ordersUnsub = onSnapshot(collection(db, "orders"), (snapshot) => {
+      const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+      setOrders(ordersData);
+    }, (error) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'orders', operation: 'list'}));
+    });
+
+    const customersUnsub = onSnapshot(collection(db, "customers"), (snapshot) => {
+      const customersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+      setCustomers(customersData);
+    }, (error) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'customers', operation: 'list'}));
+    });
+    
+    return () => {
+      ordersUnsub();
+      customersUnsub();
+    }
+  }, []);
+
+  const combinedOrders = useMemo(() => {
+    const customerMap = new Map(customers.map(c => [c.id, c.name]));
+    return orders.map(order => ({
+      ...order,
+      customerName: customerMap.get(order.customerId) || "Unknown Customer"
+    })).sort((a,b) => b.createdAt.seconds - a.createdAt.seconds);
+  }, [orders, customers]);
+
+
+  useEffect(() => {
+    const invoiceId = searchParams.get('invoice');
+    const receiptId = searchParams.get('receipt');
+
+    if (invoiceId && combinedOrders.length > 0) {
+      const order = combinedOrders.find(o => o.id === invoiceId);
+      if (order) {
+        handleActionClick(order, 'invoice');
+        router.replace('/dashboard/orders', undefined);
+      }
+    }
+    if (receiptId && combinedOrders.length > 0) {
+      const order = combinedOrders.find(o => o.id === receiptId);
+      if (order) {
+        handleActionClick(order, 'receipt');
+        router.replace('/dashboard/orders', undefined);
+      }
+    }
+  }, [searchParams, combinedOrders, router]);
+
 
   const handleActionClick = (order: Order, dialog: keyof typeof dialogs) => {
     setCurrentOrder(order);
     setDialogs(prev => ({ ...prev, [dialog]: true }));
   };
   
-  const handleCancelOrder = () => {
+  const handleUpdateStatus = async (id: string, status: Order['status']) => {
+    const orderDoc = doc(db, "orders", id);
+    try {
+        await updateDoc(orderDoc, { status });
+        toast({
+            title: "Status Updated!",
+            description: `Order #${id.substring(0, 6)} has been marked as ${status}.`,
+        });
+    } catch (error) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({path: orderDoc.path, operation: 'update'}));
+    }
+  }
+
+  const handleCancelOrder = async () => {
     if (!currentOrder) return;
-    console.log(`Cancelling order ${currentOrder.id}`);
-    toast({
-        variant: "destructive",
-        title: "Order Cancelled",
-        description: `Order ${currentOrder.id} has been cancelled.`
-    })
+    
+    const orderDoc = doc(db, "orders", currentOrder.id);
+    try {
+        await deleteDoc(orderDoc);
+        toast({
+            variant: "destructive",
+            title: "Order Cancelled",
+            description: `Order ${currentOrder.id.substring(0, 6)} has been cancelled.`
+        })
+    } catch (error) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({path: orderDoc.path, operation: 'delete'}));
+    }
+    setDialogs(prev => ({ ...prev, cancel: false }));
   }
 
   const formatCurrency = (amount: number) => {
@@ -163,6 +289,22 @@ export default function OrdersPage() {
       currency: "INR",
     }).format(amount);
   };
+  
+  const getItemsSummary = (items: OrderItem[]) => {
+    if (!items || items.length === 0) return 'No items';
+    if (items.length === 1) return items[0].name;
+    return `${items.length} items`;
+  }
+  
+  const getStatusBadgeVariant = (status: Order['status']) => {
+    switch (status) {
+        case 'Delivered': return 'secondary';
+        case 'Cancelled': return 'destructive';
+        case 'Ready': return 'default';
+        default: return 'outline';
+    }
+  }
+
 
   return (
     <div className="space-y-8">
@@ -199,14 +341,14 @@ export default function OrdersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.map((order) => (
+              {combinedOrders.map((order) => (
                 <TableRow key={order.id}>
-                  <TableCell className="font-medium">{order.id}</TableCell>
+                  <TableCell className="font-medium">#{order.id.substring(0, 6)}</TableCell>
                   <TableCell>{order.customerName}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {order.items}
+                    {getItemsSummary(order.items)}
                   </TableCell>
-                  <TableCell>{formatCurrency(order.total)}</TableCell>
+                  <TableCell>{formatCurrency(order.subtotal)}</TableCell>
                   <TableCell
                     className={order.balance > 0 ? "text-destructive" : ""}
                   >
@@ -214,16 +356,13 @@ export default function OrdersPage() {
                   </TableCell>
                   <TableCell>
                     <Badge
-                      variant={
-                        order.status === "Delivered" ? "secondary" : "outline"
-                      }
+                      variant={getStatusBadgeVariant(order.status)}
                       className="capitalize"
                     >
                       {order.status}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                     <AlertDialog>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
@@ -237,34 +376,17 @@ export default function OrdersPage() {
                             Generate Invoice
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => handleActionClick(order, 'receipt')}>
-                            View Measurement Receipt
+                            View Measurement Slip
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => handleActionClick(order, 'status')}>
                             Update Status
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                           <AlertDialogTrigger asChild>
-                            <DropdownMenuItem className="text-destructive" onSelect={() => setCurrentOrder(order)}>
+                           <DropdownMenuItem className="text-destructive" onSelect={() => handleActionClick(order, 'cancel')}>
                                 Cancel Order
                             </DropdownMenuItem>
-                           </AlertDialogTrigger>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                       <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. This will permanently cancel the order #{currentOrder?.id}.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Back</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleCancelOrder}>
-                              Yes, Cancel Order
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}
@@ -276,25 +398,35 @@ export default function OrdersPage() {
       {currentOrder && (
          <>
             <Dialog open={dialogs.invoice} onOpenChange={(open) => setDialogs(p => ({...p, invoice: open}))}>
-                <DialogContent className="max-w-3xl p-0">
-                    <DialogHeader className="p-6 pb-0">
-                        <DialogTitle>Invoice #{currentOrder.id}</DialogTitle>
-                        <DialogDescription>
-                            Review the invoice details below before printing.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <Invoice order={currentOrder} />
-                </DialogContent>
+                <Invoice order={currentOrder} customer={customers.find(c => c.id === currentOrder.customerId)}/>
             </Dialog>
             <Dialog open={dialogs.status} onOpenChange={(open) => setDialogs(p => ({...p, status: open}))}>
-               <UpdateStatusDialog order={currentOrder} setOpen={(open) => setDialogs(p => ({...p, status: open}))} />
+               <UpdateStatusDialog order={currentOrder} setOpen={(open) => setDialogs(p => ({...p, status: open}))} onUpdate={handleUpdateStatus}/>
             </Dialog>
             <Dialog open={dialogs.receipt} onOpenChange={(open) => setDialogs(p => ({...p, receipt: open}))}>
-                <MeasurementReceiptDialog order={currentOrder} />
+                <MeasurementReceiptDialog order={currentOrder} customer={customers.find(c => c.id === currentOrder.customerId)}/>
             </Dialog>
+            <AlertDialog open={dialogs.cancel} onOpenChange={(open) => setDialogs(p => ({...p, cancel: open}))}>
+                 <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                        This action cannot be undone. This will permanently cancel the order #{currentOrder.id.substring(0, 6)}.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Back</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleCancelOrder} className="bg-destructive hover:bg-destructive/90">
+                        Yes, Cancel Order
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
          </>
       )}
 
     </div>
   );
 }
+
+    
