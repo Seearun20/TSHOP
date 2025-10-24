@@ -240,7 +240,7 @@ export default function OrdersPage() {
       if (order) {
         handleActionClick(order, 'invoice');
         url.searchParams.delete('invoice');
-        router.replace(url.toString(), undefined);
+        router.replace(url.toString(), { scroll: false });
       }
     }
     if (receiptId && combinedOrders.length > 0) {
@@ -248,7 +248,7 @@ export default function OrdersPage() {
       if (order) {
         handleActionClick(order, 'receipt');
         url.searchParams.delete('receipt');
-        router.replace(url.toString(), undefined);
+        router.replace(url.toString(), { scroll: false });
       }
     }
   }, [searchParams, combinedOrders, router]);
@@ -258,6 +258,11 @@ export default function OrdersPage() {
     setCurrentOrder(order);
     if (dialog === 'invoice') {
         const url = `/print/invoice/${order.id}`;
+        window.open(url, '_blank');
+        return;
+    }
+    if (dialog === 'receipt') {
+        const url = `/print/receipt/${order.id}`;
         window.open(url, '_blank');
         return;
     }
@@ -387,7 +392,7 @@ export default function OrdersPage() {
                             Generate Invoice
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => handleActionClick(order, 'receipt')}>
-                            View Measurement Slip
+                            Generate Measurement Slip
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => handleActionClick(order, 'status')}>
                             Update Status
@@ -408,14 +413,8 @@ export default function OrdersPage() {
 
       {currentOrder && (
          <>
-            <Dialog open={dialogs.invoice} onOpenChange={(open) => setDialogs(p => ({...p, invoice: open}))}>
-                <Invoice order={currentOrder} customer={customers.find(c => c.id === currentOrder.customerId)}/>
-            </Dialog>
             <Dialog open={dialogs.status} onOpenChange={(open) => setDialogs(p => ({...p, status: open}))}>
                <UpdateStatusDialog order={currentOrder} setOpen={(open) => setDialogs(p => ({...p, status: open}))} onUpdate={handleUpdateStatus}/>
-            </Dialog>
-            <Dialog open={dialogs.receipt} onOpenChange={(open) => setDialogs(p => ({...p, receipt: open}))}>
-                <MeasurementReceiptDialog order={currentOrder} customer={customers.find(c => c.id === currentOrder.customerId)}/>
             </Dialog>
             <AlertDialog open={dialogs.cancel} onOpenChange={(open) => setDialogs(p => ({...p, cancel: open}))}>
                  <AlertDialogContent>
@@ -439,3 +438,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
