@@ -159,6 +159,7 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
     const { toast } = useToast();
 
     const getApparelKey = (apparelName: string) => {
+      if (!apparelName) return '';
       return apparelName.toLowerCase().replace(/\s/g, '').replace(/\+/g, '');
     }
 
@@ -197,8 +198,9 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
             const customerDoc = doc(db, "customers", customerId);
             const apparelKey = getApparelKey(apparel);
             
-            const updatePayload: { [key: string]: any } = {};
-            updatePayload[`measurements.${apparelKey}`] = measurements;
+            const updatePayload = {
+              [`measurements.${apparelKey}`]: measurements
+            };
             
             updateDoc(customerDoc, updatePayload)
               .then(() => {
@@ -209,11 +211,12 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
               })
               .catch(error => {
                console.error("Failed to save measurements:", error);
-               toast({
-                   variant: "destructive",
-                   title: "Save Failed",
-                   description: "Could not save measurements to customer profile."
-               })
+               const permissionError = new FirestorePermissionError({
+                   path: customerDoc.path,
+                   operation: 'update',
+                   requestResourceData: updatePayload
+               });
+               errorEmitter.emit('permission-error', permissionError);
             });
         }
 
@@ -398,7 +401,7 @@ export default function NewOrderPage() {
         // --- 1. READS ---
         const counterRef = doc(db, "counters", "orders");
         const counterDoc = await transaction.get(counterRef);
-
+        
         let newOrderNumber = 1001;
         if (counterDoc.exists()) {
           newOrderNumber = counterDoc.data().lastOrderNumber + 1;
@@ -407,7 +410,7 @@ export default function NewOrderPage() {
         let finalCustomerId = values.customerId;
         let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
         
-        // --- 2. WRITES (but conditional on read) ---
+        // --- 2. WRITES ---
         if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
           const newCustomerRef = doc(collection(db, "customers"));
           transaction.set(newCustomerRef, {
@@ -424,22 +427,6 @@ export default function NewOrderPage() {
           throw new Error("Customer not selected or created.");
         }
         
-        transaction.set(counterRef, { lastOrderNumber: newOrderNumber }, { merge: true });
-
-        values.items.forEach(item => {
-          if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
-            const stockCollectionName = item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock';
-            const stockRef = doc(db, stockCollectionName, item.details.stockId);
-            const stockItem = (item.type === 'readymade' ? readyMadeStock : fabricStock).find(s => s.id === item.details.stockId);
-            if (stockItem) {
-              const currentStock = item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length;
-              const newQuantity = currentStock - item.quantity;
-              const fieldToUpdate = item.type === 'readymade' ? 'quantity' : 'length';
-              transaction.update(stockRef, { [fieldToUpdate]: newQuantity });
-            }
-          }
-        });
-
         const orderDocRef = doc(collection(db, "orders"));
         const newOrderData = {
           orderNumber: newOrderNumber,
@@ -449,10 +436,27 @@ export default function NewOrderPage() {
           subtotal: subtotal,
           advance: advance,
           balance: balance,
-          status: "In Progress",
+          status: "In Progress" as const,
           createdAt: new Date(),
         };
         transaction.set(orderDocRef, newOrderData);
+
+        transaction.set(counterRef, { lastOrderNumber: newOrderNumber }, { merge: true });
+
+        values.items.forEach(item => {
+          if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
+            const stockCollectionName = item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock';
+            const stockRef = doc(db, stockCollectionName, item.details.stockId);
+            // This read is safe because it's based on data from the client, not a previous read in the transaction.
+            const stockItem = (item.type === 'readymade' ? readyMadeStock : fabricStock).find(s => s.id === item.details.stockId);
+            if (stockItem) {
+              const currentStock = item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length;
+              const newQuantity = currentStock - item.quantity;
+              const fieldToUpdate = item.type === 'readymade' ? 'quantity' : 'length';
+              transaction.update(stockRef, { [fieldToUpdate]: newQuantity });
+            }
+          }
+        });
         
         return {
           id: orderDocRef.id,
@@ -670,6 +674,8 @@ export default function NewOrderPage() {
         </form>
     </Form>
     );
+
+    
 
     
 
