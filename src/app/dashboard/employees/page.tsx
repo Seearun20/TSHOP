@@ -74,11 +74,10 @@ const employeeSchema = z.object({
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
 
-function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void; employee?: Employee | null }) {
+function EmployeeForm({ setOpen, employee, setEmployees, allEmployees }: { setOpen: (open: boolean) => void; employee?: Employee | null, setEmployees: React.Dispatch<React.SetStateAction<Employee[]>>, allEmployees: Employee[] }) {
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const isEditMode = !!employee;
-    const [employees, setEmployees] = useState(mockEmployees);
 
     const form = useForm<EmployeeFormValues>({
         resolver: zodResolver(employeeSchema),
@@ -94,10 +93,10 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
         // Simulate API call
         setTimeout(() => {
             if (isEditMode && employee) {
-                setEmployees(employees.map(e => e.id === employee.id ? {...e, ...values} : e));
+                setEmployees(allEmployees.map(e => e.id === employee.id ? {...e, ...values} : e));
             } else {
-                const newEmployee = { ...values, id: `EMP${employees.length + 1}`, balance: 0, leaves: 0 };
-                setEmployees([...employees, newEmployee]);
+                const newEmployee = { ...values, id: `EMP${allEmployees.length + 1}`, balance: 0, leaves: 0 };
+                setEmployees([...allEmployees, newEmployee]);
             }
             toast({
                 title: isEditMode ? "Employee Updated!" : "Employee Added!",
@@ -105,6 +104,7 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
             });
             setIsSubmitting(false);
             setOpen(false);
+            form.reset();
         }, 1000);
     };
 
@@ -200,7 +200,6 @@ export default function EmployeesPage() {
             title: "Leaves Updated",
             description: `Leave balance updated for ${currentEmployee.name}.`,
         });
-        console.log(`Updating leaves for ${currentEmployee.name} to ${newLeaves}`);
         setDialogs(p => ({...p, leaves: false}));
     }
 
@@ -212,6 +211,7 @@ export default function EmployeesPage() {
             title: "Employee Removed",
             description: `${currentEmployee.name} has been removed from your records.`
         });
+        setDialogs(prev => ({ ...prev, delete: false }));
     }
 
     return (
@@ -219,7 +219,7 @@ export default function EmployeesPage() {
             <PageHeader title="Employees" subtitle="Manage your staff, salaries, and leaves.">
                 <Dialog open={dialogs.add} onOpenChange={(open) => setDialogs(p => ({ ...p, add: open }))}>
                     <DialogTrigger asChild>
-                        <Button>
+                        <Button onClick={() => setCurrentEmployee(null)}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Add Employee
                         </Button>
                     </DialogTrigger>
@@ -230,7 +230,7 @@ export default function EmployeesPage() {
                                 Fill in the details below to add a new employee to your payroll.
                             </DialogDescription>
                         </DialogHeader>
-                        <EmployeeForm setOpen={(open) => setDialogs(p => ({ ...p, add: open }))} />
+                        <EmployeeForm setOpen={(open) => setDialogs(p => ({ ...p, add: open }))} setEmployees={setEmployees} allEmployees={employees} />
                     </DialogContent>
                 </Dialog>
             </PageHeader>
@@ -266,42 +266,24 @@ export default function EmployeesPage() {
                                     <TableCell className={employee.balance > 0 ? "text-destructive" : ""}>{formatCurrency(employee.balance)}</TableCell>
                                     <TableCell>{employee.leaves}</TableCell>
                                     <TableCell>
-                                        <AlertDialog>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" className="h-8 w-8 p-0">
-                                                        <span className="sr-only">Open menu</span>
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                    <DropdownMenuItem onSelect={() => handleActionClick(employee, 'edit')}>Edit Details</DropdownMenuItem>
-                                                    <DropdownMenuItem onSelect={() => handleActionClick(employee, 'pay')}>Pay Salary</DropdownMenuItem>
-                                                    <DropdownMenuItem onSelect={() => handleActionClick(employee, 'leaves')}>Manage Leaves</DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <AlertDialogTrigger asChild>
-                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setCurrentEmployee(employee)}>
-                                                            Remove Employee
-                                                        </DropdownMenuItem>
-                                                    </AlertDialogTrigger>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        This action cannot be undone. This will permanently remove {currentEmployee?.name} from your records.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Back</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={handleRemoveEmployee}>
-                                                        Yes, Remove Employee
-                                                    </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                                    <span className="sr-only">Open menu</span>
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'edit')}>Edit Details</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'pay')}>Pay Salary</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'leaves')}>Manage Leaves</DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem className="text-destructive" onSelect={() => handleActionClick(employee, 'delete')}>
+                                                    Remove Employee
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -318,7 +300,7 @@ export default function EmployeesPage() {
                                 <DialogTitle>Edit Employee Details</DialogTitle>
                                 <DialogDescription>Update the details for {currentEmployee.name}.</DialogDescription>
                             </DialogHeader>
-                            <EmployeeForm setOpen={(open) => setDialogs(p => ({ ...p, edit: open }))} employee={currentEmployee} />
+                            <EmployeeForm setOpen={(open) => setDialogs(p => ({ ...p, edit: open }))} employee={currentEmployee} setEmployees={setEmployees} allEmployees={employees} />
                         </DialogContent>
                     </Dialog>
                     
@@ -357,9 +339,27 @@ export default function EmployeesPage() {
                             </form>
                         </DialogContent>
                     </Dialog>
+
+                    <AlertDialog open={dialogs.delete} onOpenChange={(open) => setDialogs(p => ({ ...p, delete: open }))}>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently remove {currentEmployee.name} from your records.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Back</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleRemoveEmployee}>
+                                    Yes, Remove Employee
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </>
             )}
 
         </div>
     );
 }
+
