@@ -1,5 +1,5 @@
 import { LoginForm } from "@/components/auth/login-form";
-import { StitchSavvyLogo } from "@/components/stitch-savvy-logo";
+import { AppLogo } from "@/components/app-logo";
 import {
   Card,
   CardContent,
@@ -12,12 +12,12 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="flex flex-col items-center justify-center text-center">
-        <StitchSavvyLogo className="w-24 h-24 mb-4 text-primary" />
+        <AppLogo className="w-24 h-24 mb-4 text-primary" />
         <h1 className="text-5xl font-bold font-headline text-primary">
-          StitchSavvy
+          Raghav Tailor & Fabric
         </h1>
         <p className="mt-2 text-lg text-muted-foreground">
-          Raghav Tailors & Fabrics
+          Your Personal Tailoring Assistant
         </p>
       </div>
 

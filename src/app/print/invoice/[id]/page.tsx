@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,7 +7,7 @@ import { Order } from "@/app/dashboard/orders/page";
 import { Customer } from "@/app/dashboard/customers/page";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { StitchSavvyLogo } from "@/components/stitch-savvy-logo";
+import { AppLogo } from "@/components/app-logo";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function InvoicePrintPage({ params }: { params: { id: string } }) {
@@ -79,8 +78,8 @@ export default function InvoicePrintPage({ params }: { params: { id: string } })
         <CardHeader className="space-y-4">
           <div className="flex items-start justify-between">
             <div>
-              <StitchSavvyLogo className="w-16 h-16 text-black" />
-              <h1 className="text-2xl font-bold font-headline mt-2">Raghav Tailors & Fabrics</h1>
+              <AppLogo className="w-16 h-16 text-black" />
+              <h1 className="text-2xl font-bold font-headline mt-2">Raghav Tailor & Fabric</h1>
               <p className="text-gray-600">123 Fashion Street, New Delhi, 110001</p>
             </div>
             <div className="text-right">

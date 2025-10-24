@@ -1,4 +1,3 @@
-
 "use client"
 import Link from "next/link";
 import {
@@ -23,7 +22,7 @@ import {
   SidebarTrigger,
   SidebarInset,
 } from "@/components/ui/sidebar";
-import { StitchSavvyLogo } from "@/components/stitch-savvy-logo";
+import { AppLogo } from "@/components/app-logo";
 import { Button } from "@/components/ui/button";
 import { usePathname } from "next/navigation";
 import {
@@ -71,9 +70,9 @@ export default function DashboardLayout({
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-2">
-            <StitchSavvyLogo className="w-8 h-8 text-sidebar-primary" />
+            <AppLogo className="w-8 h-8 text-sidebar-primary" />
             <span className="text-lg font-semibold font-headline text-sidebar-foreground">
-              StitchSavvy
+              Raghav Tailors
             </span>
           </div>
         </SidebarHeader>

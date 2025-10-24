@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -109,7 +108,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
           </div>
       ))}
        <div className="my-4 border-t border-dashed border-black"></div>
-       <p className="text-xs text-center text-gray-500">StitchSavvy | {new Date().toLocaleString()}</p>
+       <p className="text-xs text-center text-gray-500">Raghav Tailor & Fabric | {new Date().toLocaleString()}</p>
        <style jsx global>{`
         @media print {
           body {
