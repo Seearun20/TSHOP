@@ -1,13 +1,22 @@
+
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { financialSummary } from "@/lib/data";
 import { DollarSign, ShoppingBag, TrendingUp, UserPlus } from "lucide-react";
 
-export function FinancialCards() {
+interface FinancialCardsProps {
+  summary: {
+    totalSales: number;
+    totalPurchases: number;
+    totalProfit: number;
+    newOrders: number;
+  };
+}
+
+export function FinancialCards({ summary }: FinancialCardsProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -25,9 +34,9 @@ export function FinancialCards() {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {formatCurrency(financialSummary.totalSales)}
+            {formatCurrency(summary.totalSales)}
           </div>
-          <p className="text-xs text-muted-foreground">+20.1% from last month</p>
+          <p className="text-xs text-muted-foreground">All-time sales revenue</p>
         </CardContent>
       </Card>
       <Card className="shadow-lg">
@@ -37,21 +46,20 @@ export function FinancialCards() {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {formatCurrency(financialSummary.totalPurchases)}
+            {formatCurrency(summary.totalPurchases)}
           </div>
-          <p className="text-xs text-muted-foreground">+18.1% from last month</p>
+          <p className="text-xs text-muted-foreground">All-time inventory cost</p>
         </CardContent>
       </Card>
       <Card className="shadow-lg">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
-          <TrendingUp className="h-4 w-4 text-muted-foreground text-accent" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {formatCurrency(financialSummary.totalProfit)}
+            {formatCurrency(summary.totalProfit)}
           </div>
-          <p className="text-xs text-muted-foreground">+22.3% from last month</p>
+          <p className="text-xs text-muted-foreground">Gross profit (Sales - Purchases)</p>
         </CardContent>
       </Card>
       <Card className="shadow-lg">
@@ -60,8 +68,8 @@ export function FinancialCards() {
           <UserPlus className="h-4 w-4 text-muted-foreground text-accent" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">+{financialSummary.newOrders}</div>
-          <p className="text-xs text-muted-foreground">+15 this month</p>
+          <div className="text-2xl font-bold">+{summary.newOrders}</div>
+          <p className="text-xs text-muted-foreground">this month</p>
         </CardContent>
       </Card>
     </div>

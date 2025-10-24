@@ -17,14 +17,18 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useState, useMemo } from "react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
-import { Order, OrderItem } from "./orders/page";
+import { Order } from "./orders/page";
 import { Customer } from "./customers/page";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { ReadyMadeStockItem } from "./stock/readymade/page";
+import { FabricStockItem } from "./stock/fabric/page";
 
 export default function DashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [readyMadeStock, setReadyMadeStock] = useState<ReadyMadeStockItem[]>([]);
+  const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
 
   useEffect(() => {
     const ordersQuery = query(collection(db, "orders"), orderBy("createdAt", "desc"));
@@ -41,10 +45,26 @@ export default function DashboardPage() {
     }, (error) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'customers', operation: 'list'}));
     });
+
+    const readyMadeUnsub = onSnapshot(collection(db, "readyMadeStock"), (snapshot) => {
+      const stockData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ReadyMadeStockItem));
+      setReadyMadeStock(stockData);
+    }, (error) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'readyMadeStock', operation: 'list'}));
+    });
+
+    const fabricUnsub = onSnapshot(collection(db, "fabricStock"), (snapshot) => {
+      const stockData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FabricStockItem));
+      setFabricStock(stockData);
+    }, (error) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'fabricStock', operation: 'list'}));
+    });
     
     return () => {
       ordersUnsub();
       customersUnsub();
+      readyMadeUnsub();
+      fabricUnsub();
     }
   }, []);
 
@@ -54,7 +74,6 @@ export default function DashboardPage() {
     };
     
     orders.forEach(order => {
-      // Ensure createdAt and seconds properties exist
       if (order.createdAt && typeof order.createdAt.seconds === 'number') {
         const orderDate = new Date(order.createdAt.seconds * 1000);
         const month = orderDate.toLocaleString('default', { month: 'short' });
@@ -71,12 +90,34 @@ export default function DashboardPage() {
   }, [orders]);
 
 
+  const financialSummary = useMemo(() => {
+    const totalSales = orders.reduce((sum, order) => sum + order.subtotal, 0);
+    
+    const readyMadePurchases = readyMadeStock.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+    const fabricPurchases = fabricStock.reduce((sum, item) => sum + (item.costPerMtr * item.length), 0);
+    const totalPurchases = readyMadePurchases + fabricPurchases;
+    
+    const totalProfit = totalSales - totalPurchases;
+
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const newOrders = orders.filter(order => {
+      if (order.createdAt && typeof order.createdAt.seconds === 'number') {
+        const orderDate = new Date(order.createdAt.seconds * 1000);
+        return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
+      }
+      return false;
+    }).length;
+
+    return { totalSales, totalPurchases, totalProfit, newOrders };
+  }, [orders, readyMadeStock, fabricStock]);
+
+
   const recentOrders = useMemo(() => {
     const customerMap = new Map(customers.map(c => [c.id, c]));
     return orders.slice(0, 5).map(order => ({
       ...order,
       customerName: customerMap.get(order.customerId)?.name || "Unknown",
-      customerEmail: customerMap.get(order.customerId)?.email || "",
     }));
   }, [orders, customers]);
 
@@ -100,7 +141,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <PageHeader title="Dashboard" subtitle="Welcome back, Raghav!" />
 
-      <FinancialCards />
+      <FinancialCards summary={financialSummary} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
