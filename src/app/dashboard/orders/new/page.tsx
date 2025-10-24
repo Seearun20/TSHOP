@@ -195,7 +195,7 @@ function StitchingServiceDialog({ onAddItem, customerId }: { onAddItem: (item: O
                         </div>
                         <div className="space-y-2">
                             <Label>Stitching Price</Label>
-                            <Input type="number" value={price} onChange={e => setPrice(Number(e.target.value))} placeholder="Enter price"/>
+                            <Input type="text" inputMode="numeric" value={price || ''} onChange={e => setPrice(Number(e.target.value.replace(/[^0-9]/g, '')))} placeholder="Enter price"/>
                         </div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -449,8 +449,8 @@ export default function NewOrderPage() {
                                        <SelectTrigger className="md:col-span-2"><SelectValue placeholder="Select ready-made item..."/></SelectTrigger>
                                        <SelectContent>{readyMadeStock.map(s => <SelectItem key={s.id} value={s.id}>{s.item} - {s.size} ({s.quantity} left)</SelectItem>)}</SelectContent>
                                    </Select>
-                                   <Input type="number" value={selectedReadyMade?.quantity || ''} onChange={e => setSelectedReadyMade(s => ({...s!, quantity: Number(e.target.value) }))} placeholder="Qty" disabled={!selectedReadyMade}/>
-                                   <Input type="number" value={selectedReadyMade?.price || ''} onChange={e => setSelectedReadyMade(s => ({...s!, price: Number(e.target.value) }))} placeholder="Selling Price" disabled={!selectedReadyMade}/>
+                                   <Input type="text" inputMode="numeric" value={selectedReadyMade?.quantity || ''} onChange={e => setSelectedReadyMade(s => ({...s!, quantity: Number(e.target.value.replace(/[^0-9]/g, '')) }))} placeholder="Qty" disabled={!selectedReadyMade}/>
+                                   <Input type="text" inputMode="numeric" value={selectedReadyMade?.price || ''} onChange={e => setSelectedReadyMade(s => ({...s!, price: Number(e.target.value.replace(/[^0-9]/g, '')) }))} placeholder="Selling Price" disabled={!selectedReadyMade}/>
                                </div>
                                <Button type="button" size="sm" onClick={handleAddReadyMade} disabled={!selectedReadyMade || !selectedReadyMade.price}>Add to Order</Button>
                             </div>
@@ -463,8 +463,8 @@ export default function NewOrderPage() {
                                        <SelectTrigger className="md:col-span-2"><SelectValue placeholder="Select fabric..."/></SelectTrigger>
                                        <SelectContent>{fabricStock.map(s => <SelectItem key={s.id} value={s.id}>{s.type} ({s.length}m left)</SelectItem>)}</SelectContent>
                                    </Select>
-                                   <Input type="number" value={selectedFabric?.length || ''} onChange={e => setSelectedFabric(s => ({...s!, length: Number(e.target.value) }))} placeholder="Length (m)" disabled={!selectedFabric}/>
-                                   <Input type="number" value={selectedFabric?.price || ''} onChange={e => setSelectedFabric(s => ({...s!, price: Number(e.target.value) }))} placeholder="Total Price" disabled={!selectedFabric}/>
+                                   <Input type="text" inputMode="numeric" value={selectedFabric?.length || ''} onChange={e => setSelectedFabric(s => ({...s!, length: Number(e.target.value.replace(/[^0-9.]/g, '')) }))} placeholder="Length (m)" disabled={!selectedFabric}/>
+                                   <Input type="text" inputMode="numeric" value={selectedFabric?.price || ''} onChange={e => setSelectedFabric(s => ({...s!, price: Number(e.target.value.replace(/[^0-9]/g, '')) }))} placeholder="Total Price" disabled={!selectedFabric}/>
                                </div>
                                <Button type="button" size="sm" onClick={handleAddFabric} disabled={!selectedFabric || !selectedFabric.price}>Add to Order</Button>
                             </div>
@@ -474,8 +474,8 @@ export default function NewOrderPage() {
                                <h4 className="font-medium">Accessory</h4>
                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                    <Input value={accessory?.name || ''} onChange={e => setAccessory(s => ({ ...s!, name: e.target.value }))} placeholder="Accessory Name" className="md:col-span-2"/>
-                                   <Input type="number" value={accessory?.quantity || ''} onChange={e => setAccessory(s => ({...s!, quantity: Number(e.target.value) }))} placeholder="Qty"/>
-                                   <Input type="number" value={accessory?.price || ''} onChange={e => setAccessory(s => ({...s!, price: Number(e.target.value) }))} placeholder="Price per item"/>
+                                   <Input type="text" inputMode="numeric" value={accessory?.quantity || ''} onChange={e => setAccessory(s => ({...s!, quantity: Number(e.target.value.replace(/[^0-9]/g, '')) }))} placeholder="Qty"/>
+                                   <Input type="text" inputMode="numeric" value={accessory?.price || ''} onChange={e => setAccessory(s => ({...s!, price: Number(e.target.value.replace(/[^0-9]/g, '')) }))} placeholder="Price per item"/>
                                </div>
                                <Button type="button" size="sm" onClick={handleAddAccessory} disabled={!accessory || !accessory.price}>Add to Order</Button>
                             </div>
@@ -518,7 +518,7 @@ export default function NewOrderPage() {
                                 <FormField control={form.control} name="advance" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Advance Paid</FormLabel>
-                                        <FormControl><Input type="number" placeholder="0.00" {...field}/></FormControl>
+                                        <FormControl><Input type="text" inputMode="numeric" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value.replace(/[^0-9]/g, ''))}/></FormControl>
                                         <FormMessage/>
                                     </FormItem>
                                 )}/>
@@ -539,6 +539,5 @@ export default function NewOrderPage() {
     </Form>
     );
 }
-
 
     
