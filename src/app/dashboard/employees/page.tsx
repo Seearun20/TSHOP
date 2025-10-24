@@ -243,7 +243,7 @@ function ManageLeavesDialog({ employee, setOpen }: { employee: Employee; setOpen
         e.preventDefault();
         if (!description) return;
         const employeeDoc = doc(db, "employees", employee.id);
-        const newLeave = {
+        const newLeave: Leave = {
             date: new Date().toISOString(),
             description: description
         };
@@ -409,6 +409,7 @@ export default function EmployeesPage() {
         leaves: false,
         history: false,
     });
+    const { toast } = useToast();
     
     const updateSalaryBalances = useCallback(async (employeesData: Employee[]) => {
         const today = new Date();
@@ -467,7 +468,7 @@ export default function EmployeesPage() {
         const employeeDoc = doc(db, "employees", currentEmployee.id);
         try {
             await deleteDoc(employeeDoc);
-            useToast().toast({
+            toast({
                 variant: "destructive",
                 title: "Employee Removed",
                 description: `${currentEmployee.name} has been removed from your records.`
@@ -476,7 +477,7 @@ export default function EmployeesPage() {
             errorEmitter.emit('permission-error', new FirestorePermissionError({path: employeeDoc.path, operation: 'delete'}));
         }
         setDialogs(prev => ({ ...prev, delete: false }));
-    }
+    };
 
     return (
         <div className="space-y-8">
@@ -569,7 +570,7 @@ export default function EmployeesPage() {
                         </DialogContent>
                     </Dialog>
                     
-                    <Dialog open={dialogs.payment} onOpenChange={(open) => setDialogs(p => ({ ...p, payment: open }))}>
+                    <Dialog open={dialogs.payment} onOpenChange={(open) => setDialogs(p => ({...p, payment: open}))}>
                        <MakePaymentDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, payment: open}))} />
                     </Dialog>
 
@@ -603,7 +604,5 @@ export default function EmployeesPage() {
         </div>
     );
 }
-
-    
 
     
