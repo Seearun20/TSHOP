@@ -342,69 +342,67 @@ export default function NewOrderPage() {
     }
     
     const onSubmit = async (values: OrderFormValues) => {
-      try {
-        const savedOrder = await runTransaction(db, async (transaction) => {
-          let finalCustomerId = values.customerId;
-          let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
-  
-          if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
-            const newCustomerRef = doc(collection(db, "customers"));
-            transaction.set(newCustomerRef, {
-              name: values.newCustomerName,
-              phone: values.newCustomerPhone,
-              email: '',
-              measurements: {}
-            });
-            finalCustomerId = newCustomerRef.id;
-            finalCustomerName = values.newCustomerName;
-          }
-  
-          if (!finalCustomerId) {
-            throw new Error("Customer not selected or created.");
-          }
-  
-          const counterRef = doc(db, "counters", "orders");
-          const counterDoc = await transaction.get(counterRef);
-          
-          let newOrderNumber = 1001;
-          if (counterDoc.exists()) {
-            newOrderNumber = counterDoc.data().lastOrderNumber + 1;
-          }
-          transaction.set(counterRef, { lastOrderNumber: newOrderNumber }, { merge: true });
-  
-          values.items.forEach(item => {
-            if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
-              const stockRef = doc(db, item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock', item.details.stockId);
-              const stockItem = (item.type === 'readymade' ? readyMadeStock : fabricStock).find(s => s.id === item.details.stockId);
-              if (stockItem) {
-                const currentStock = item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length;
-                const newQuantity = currentStock - item.quantity;
-                transaction.update(stockRef, { [item.type === 'readymade' ? 'quantity' : 'length']: newQuantity });
-              }
-            }
+      runTransaction(db, async (transaction) => {
+        let finalCustomerId = values.customerId;
+        let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
+
+        if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
+          const newCustomerRef = doc(collection(db, "customers"));
+          transaction.set(newCustomerRef, {
+            name: values.newCustomerName,
+            phone: values.newCustomerPhone,
+            email: '',
+            measurements: {}
           });
-  
-          const orderDocRef = doc(collection(db, "orders"));
-          const newOrderData = {
-            orderNumber: newOrderNumber,
-            customerId: finalCustomerId,
-            deliveryDate: values.deliveryDate || null,
-            items: values.items,
-            subtotal: subtotal,
-            advance: advance,
-            balance: balance,
-            status: "In Progress",
-            createdAt: new Date(),
-          };
-          transaction.set(orderDocRef, newOrderData);
-          
-          return {
-            id: orderDocRef.id,
-            customerName: finalCustomerName,
-            ...newOrderData,
-          } as Order;
+          finalCustomerId = newCustomerRef.id;
+          finalCustomerName = values.newCustomerName;
+        }
+
+        if (!finalCustomerId) {
+          throw new Error("Customer not selected or created.");
+        }
+
+        const counterRef = doc(db, "counters", "orders");
+        const counterDoc = await transaction.get(counterRef);
+        
+        let newOrderNumber = 1001;
+        if (counterDoc.exists()) {
+          newOrderNumber = counterDoc.data().lastOrderNumber + 1;
+        }
+        transaction.set(counterRef, { lastOrderNumber: newOrderNumber }, { merge: true });
+
+        values.items.forEach(item => {
+          if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
+            const stockRef = doc(db, item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock', item.details.stockId);
+            const stockItem = (item.type === 'readymade' ? readyMadeStock : fabricStock).find(s => s.id === item.details.stockId);
+            if (stockItem) {
+              const currentStock = item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length;
+              const newQuantity = currentStock - item.quantity;
+              transaction.update(stockRef, { [item.type === 'readymade' ? 'quantity' : 'length']: newQuantity });
+            }
+          }
         });
 
+        const orderDocRef = doc(collection(db, "orders"));
+        const newOrderData = {
+          orderNumber: newOrderNumber,
+          customerId: finalCustomerId,
+          deliveryDate: values.deliveryDate || null,
+          items: values.items,
+          subtotal: subtotal,
+          advance: advance,
+          balance: balance,
+          status: "In Progress",
+          createdAt: new Date(),
+        };
+        transaction.set(orderDocRef, newOrderData);
+        
+        return {
+          id: orderDocRef.id,
+          customerName: finalCustomerName,
+          ...newOrderData,
+        } as Order;
+      }).then((savedOrder) => {
         setLastCreatedOrder(savedOrder);
 
         toast({
@@ -428,15 +426,18 @@ export default function NewOrderPage() {
           items: [],
           advance: 0,
         });
-  
-      } catch (error: any) {
+      }).catch((error: any) => {
         console.error("Transaction failed: ", error);
         if (error.message.includes("Customer")) {
           toast({ variant: 'destructive', title: "Error", description: error.message });
         } else {
-           errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'orders', operation: 'create'}));
+           errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'orders', 
+            operation: 'create',
+            requestResourceData: values,
+          }));
         }
-      }
+      });
   }
 
     const formatCurrency = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
