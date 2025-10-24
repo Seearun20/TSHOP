@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -54,6 +55,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -242,6 +253,7 @@ export default function NewOrderPage() {
     const [readyMadeStock, setReadyMadeStock] = useState<ReadyMadeStockItem[]>([]);
     const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
     const [lastCreatedOrder, setLastCreatedOrder] = useState<Order | null>(null);
+    const [showMeasurementSlipDialog, setShowMeasurementSlipDialog] = useState(false);
 
     const [selectedReadyMade, setSelectedReadyMade] = useState<{item: ReadyMadeStockItem, quantity: number, price: number} | null>(null);
     const [selectedFabric, setSelectedFabric] = useState<{item: FabricStockItem, length: number, price: number} | null>(null);
@@ -383,19 +395,28 @@ export default function NewOrderPage() {
             };
             transaction.set(orderDocRef, newOrderData);
             
-            setLastCreatedOrder({
+            const savedOrder = {
               id: orderDocRef.id,
               customerName: finalCustomerName,
               ...newOrderData,
-            } as Order);
+            } as Order;
 
-            return orderDocRef.id;
+            setLastCreatedOrder(savedOrder);
+            return savedOrder;
           });
-    
+
           toast({
             title: "Order Created Successfully!",
-            description: `Order #${(lastCreatedOrder?.orderNumber || '') + 1} has been saved. You can now generate the invoice or measurement slip.`,
+            description: `Order #${newOrderId.orderNumber} has been saved.`,
           });
+          
+          window.open(`/print/invoice/${newOrderId.id}`, '_blank');
+          
+          const hasStitchingItem = newOrderId.items.some((item: OrderItem) => item.type === 'stitching');
+          if (hasStitchingItem) {
+            setShowMeasurementSlipDialog(true);
+          }
+
           form.reset({
             customerType: 'existing',
             customerId: '',
@@ -414,14 +435,14 @@ export default function NewOrderPage() {
              errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'orders', operation: 'create'}));
           }
         }
-      }
+    }
 
     const formatCurrency = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
 
-    const handlePrint = (type: 'invoice' | 'receipt') => {
+    const handlePrintMeasurementSlip = () => {
       if (!lastCreatedOrder) return;
-      const url = `/print/${type}/${lastCreatedOrder.id}`;
-      window.open(url, '_blank');
+      window.open(`/print/receipt/${lastCreatedOrder.id}`, '_blank');
+      setShowMeasurementSlipDialog(false);
     }
 
     return (
@@ -567,21 +588,28 @@ export default function NewOrderPage() {
                              <div className="flex justify-between font-bold text-lg"><span>Balance Due</span><span>{formatCurrency(balance)}</span></div>
                              
                              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || watchedItems.length === 0}>
-                                {form.formState.isSubmitting ? "Creating Order..." : "Create Order"}
+                                {form.formState.isSubmitting ? "Creating Order..." : "Create Order & Generate Invoice"}
                              </Button>
                              <FormField control={form.control} name="items" render={() => <FormMessage/>}/>
                          </CardContent>
-                         <CardFooter className="flex flex-col gap-2">
-                            <Button onClick={() => handlePrint('invoice')} variant="outline" className="w-full" disabled={!lastCreatedOrder}>
-                                <Printer className="mr-2"/>Generate Invoice
-                            </Button>
-                            <Button onClick={() => handlePrint('receipt')} variant="outline" className="w-full" disabled={!lastCreatedOrder}>
-                                <Printer className="mr-2"/>Generate Measurement Slip
-                            </Button>
-                         </CardFooter>
                      </Card>
                 </div>
             </div>
+
+            <AlertDialog open={showMeasurementSlipDialog} onOpenChange={setShowMeasurementSlipDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Print Measurement Slip?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This order contains stitching items. Would you like to print the measurement slip for the tailor?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Later</AlertDialogCancel>
+                        <AlertDialogAction onClick={handlePrintMeasurementSlip}>Print Slip</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
         </form>
     </Form>
