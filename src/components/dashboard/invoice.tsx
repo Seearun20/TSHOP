@@ -1,5 +1,5 @@
 
-
+import { DialogContent } from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { StitchSavvyLogo } from "@/components/stitch-savvy-logo";
@@ -38,7 +38,7 @@ export function Invoice({ order, customer }: InvoiceProps) {
                             </div>
                             <div className="text-right">
                                 <h2 className="text-3xl font-bold text-primary font-headline">Invoice</h2>
-                                <p className="text-muted-foreground">#{order.id.substring(0,6)}</p>
+                                <p className="text-muted-foreground">#{order.orderNumber}</p>
                                 <p>Date: {new Date(order.createdAt.seconds * 1000).toLocaleDateString()}</p>
                             </div>
                         </div>
@@ -101,5 +101,3 @@ export function Invoice({ order, customer }: InvoiceProps) {
         </DialogContent>
     )
 }
-
-    

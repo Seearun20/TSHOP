@@ -26,13 +26,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Printer } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -75,6 +76,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
+  orderNumber: number;
   customerId: string;
   deliveryDate?: { seconds: number; nanoseconds: number; } | null;
   items: OrderItem[];
@@ -100,7 +102,7 @@ function UpdateStatusDialog({ order, setOpen, onUpdate }: { order: Order; setOpe
       <DialogHeader>
         <DialogTitle>Update Order Status</DialogTitle>
         <DialogDescription>
-          Change the status for order #{order.id.substring(0, 6)}.
+          Change the status for order #{order.orderNumber}.
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-4">
@@ -130,27 +132,27 @@ function UpdateStatusDialog({ order, setOpen, onUpdate }: { order: Order; setOpe
 function MeasurementReceiptDialog({ order, customer }: { order: Order, customer?: Customer }) {
     const stitchingItems = order.items.filter(item => item.type === 'stitching' && item.details?.measurements);
     
+    const handlePrint = () => {
+        setTimeout(() => window.print(), 100);
+    }
+    
     if (stitchingItems.length === 0) {
         return (
              <DialogContent>
                 <DialogHeader>
                     <DialogTitle>No Measurements</DialogTitle>
-                    <DialogDescription>There are no stitching items with measurements recorded for order #{order.id.substring(0,6)}.</DialogDescription>
+                    <DialogDescription>There are no stitching items with measurements recorded for order #{order.orderNumber}.</DialogDescription>
                 </DialogHeader>
              </DialogContent>
         )
     }
 
-    const handlePrint = () => {
-        setTimeout(() => window.print(), 100);
-    }
-
   return (
     <DialogContent className="max-w-md" onOpenAutoFocus={handlePrint}>
-      <div className="print-content text-black">
+      <div className="print-content text-black p-4">
         <DialogHeader className="text-center">
             <DialogTitle className="font-bold text-xl">Measurement Slip</DialogTitle>
-            <DialogDescription className="!text-black">Order #{order.id.substring(0, 6)}</DialogDescription>
+            <DialogDescription className="!text-black">Order #{order.orderNumber}</DialogDescription>
         </DialogHeader>
         <div className="my-4 border-t border-dashed border-black"></div>
         <div className="space-y-2 text-sm">
@@ -160,7 +162,7 @@ function MeasurementReceiptDialog({ order, customer }: { order: Order, customer?
         <div className="my-4 border-t border-dashed border-black"></div>
         
         {stitchingItems.map((item, index) => (
-            <div key={index} className="space-y-3 mt-4">
+            <div key={index} className="space-y-3 mt-4 break-inside-avoid">
                 <h4 className="font-semibold text-center uppercase tracking-wider">{item.details.apparel}</h4>
                 <div className="grid grid-cols-2 gap-x-8 gap-y-2 font-mono text-sm">
                     {Object.entries(item.details.measurements).map(([key, value]) => value && (
@@ -170,13 +172,14 @@ function MeasurementReceiptDialog({ order, customer }: { order: Order, customer?
                         </div>
                     ))}
                 </div>
+                 {item.details.isOwnFabric && <p className="text-center text-xs font-semibold pt-2">(Customer's Own Fabric)</p>}
             </div>
         ))}
          <div className="my-4 border-t border-dashed border-black"></div>
          <p className="text-xs text-center text-gray-500">StitchSavvy | {new Date().toLocaleString()}</p>
       </div>
       <Button onClick={handlePrint} className="w-full print:hidden mt-4">
-        <PlusCircle className="mr-2 h-4 w-4" /> Print
+        <Printer className="mr-2 h-4 w-4" /> Print
       </Button>
     </DialogContent>
   );
@@ -230,19 +233,22 @@ export default function OrdersPage() {
   useEffect(() => {
     const invoiceId = searchParams.get('invoice');
     const receiptId = searchParams.get('receipt');
+    const url = new URL(window.location.href);
 
     if (invoiceId && combinedOrders.length > 0) {
       const order = combinedOrders.find(o => o.id === invoiceId);
       if (order) {
         handleActionClick(order, 'invoice');
-        router.replace('/dashboard/orders', undefined);
+        url.searchParams.delete('invoice');
+        router.replace(url.toString(), undefined);
       }
     }
     if (receiptId && combinedOrders.length > 0) {
       const order = combinedOrders.find(o => o.id === receiptId);
       if (order) {
         handleActionClick(order, 'receipt');
-        router.replace('/dashboard/orders', undefined);
+        url.searchParams.delete('receipt');
+        router.replace(url.toString(), undefined);
       }
     }
   }, [searchParams, combinedOrders, router]);
@@ -259,7 +265,7 @@ export default function OrdersPage() {
         await updateDoc(orderDoc, { status });
         toast({
             title: "Status Updated!",
-            description: `Order #${id.substring(0, 6)} has been marked as ${status}.`,
+            description: `Order #${currentOrder?.orderNumber} has been marked as ${status}.`,
         });
     } catch (error) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({path: orderDoc.path, operation: 'update'}));
@@ -275,7 +281,7 @@ export default function OrdersPage() {
         toast({
             variant: "destructive",
             title: "Order Cancelled",
-            description: `Order ${currentOrder.id.substring(0, 6)} has been cancelled.`
+            description: `Order ${currentOrder.orderNumber} has been cancelled.`
         })
     } catch (error) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({path: orderDoc.path, operation: 'delete'}));
@@ -329,7 +335,7 @@ export default function OrdersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Order ID</TableHead>
+                <TableHead>Order #</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Items</TableHead>
                 <TableHead>Total</TableHead>
@@ -343,7 +349,7 @@ export default function OrdersPage() {
             <TableBody>
               {combinedOrders.map((order) => (
                 <TableRow key={order.id}>
-                  <TableCell className="font-medium">#{order.id.substring(0, 6)}</TableCell>
+                  <TableCell className="font-medium">#{order.orderNumber}</TableCell>
                   <TableCell>{order.customerName}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {getItemsSummary(order.items)}
@@ -411,7 +417,7 @@ export default function OrdersPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                        This action cannot be undone. This will permanently cancel the order #{currentOrder.id.substring(0, 6)}.
+                        This action cannot be undone. This will permanently cancel the order #{currentOrder.orderNumber}.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -428,5 +434,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    

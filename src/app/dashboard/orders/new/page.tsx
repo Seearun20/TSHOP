@@ -31,7 +31,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Customer } from "@/app/dashboard/customers/page";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, addDoc, updateDoc, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, doc, addDoc, updateDoc, writeBatch, runTransaction } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { useRouter } from "next/navigation";
 
 const orderItemSchema = z.object({
   type: z.enum(['stitching', 'readymade', 'fabric', 'accessory']),
@@ -235,6 +236,7 @@ function StitchingServiceDialog({ onAddItem, customerId }: { onAddItem: (item: O
 
 export default function NewOrderPage() {
     const { toast } = useToast();
+    const router = useRouter();
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [readyMadeStock, setReadyMadeStock] = useState<ReadyMadeStockItem[]>([]);
     const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
@@ -323,63 +325,91 @@ export default function NewOrderPage() {
     
     const onSubmit = async (values: OrderFormValues) => {
         let finalCustomerId = values.customerId;
-
-        // Create new customer if needed
-        if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
-            try {
-                const newCustomerDoc = await addDoc(collection(db, "customers"), {
-                    name: values.newCustomerName,
-                    phone: values.newCustomerPhone,
-                    email: '',
-                    measurements: {}
-                });
-                finalCustomerId = newCustomerDoc.id;
-            } catch (error) {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'customers', operation: 'create'}));
-                return;
+    
+        try {
+          const newOrderId = await runTransaction(db, async (transaction) => {
+            // Create new customer if needed
+            if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
+              const newCustomerDocRef = doc(collection(db, "customers"));
+              transaction.set(newCustomerDocRef, {
+                name: values.newCustomerName,
+                phone: values.newCustomerPhone,
+                email: '',
+                measurements: {}
+              });
+              finalCustomerId = newCustomerDocRef.id;
             }
-        }
-
-        if (!finalCustomerId) {
-            toast({ variant: 'destructive', title: "Error", description: "Customer not selected or created."});
-            return;
-        }
-
-        const batch = writeBatch(db);
-
-        // Update stock levels
-        values.items.forEach(item => {
-            if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
+    
+            if (!finalCustomerId) {
+              throw new Error("Customer not selected or created.");
+            }
+    
+            // Get the next order number
+            const counterRef = doc(db, "counters", "orders");
+            const counterDoc = await transaction.get(counterRef);
+            
+            let newOrderNumber = 1001; // Default starting number
+            if (counterDoc.exists()) {
+              newOrderNumber = counterDoc.data().lastOrderNumber + 1;
+            }
+            transaction.set(counterRef, { lastOrderNumber: newOrderNumber }, { merge: true });
+    
+            // Update stock levels
+            values.items.forEach(item => {
+              if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
                 const stockRef = doc(db, item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock', item.details.stockId);
                 const stockItem = (item.type === 'readymade' ? readyMadeStock : fabricStock).find(s => s.id === item.details.stockId);
                 if (stockItem) {
-                    const newQuantity = (item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length) - item.quantity;
-                     batch.update(stockRef, { [item.type === 'readymade' ? 'quantity' : 'length']: newQuantity });
+                  const currentStock = item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length;
+                  const newQuantity = currentStock - item.quantity;
+                  transaction.update(stockRef, { [item.type === 'readymade' ? 'quantity' : 'length']: newQuantity });
                 }
-            }
-        });
-
-        // Create order document
-        const orderDocRef = doc(collection(db, "orders"));
-        batch.set(orderDocRef, {
-            customerId: finalCustomerId,
-            deliveryDate: values.deliveryDate || null,
-            items: values.items,
-            subtotal: subtotal,
-            advance: advance,
-            balance: balance,
-            status: "In Progress",
-            createdAt: new Date(),
-        });
-        
-        try {
-            await batch.commit();
-            toast({ title: "Order Created!", description: `Order #${orderDocRef.id.substring(0, 6)} has been successfully created.`});
-            form.reset();
-        } catch (error) {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'orders', operation: 'create'}));
+              }
+            });
+    
+            // Create order document
+            const orderDocRef = doc(collection(db, "orders"));
+            transaction.set(orderDocRef, {
+              orderNumber: newOrderNumber,
+              customerId: finalCustomerId,
+              deliveryDate: values.deliveryDate || null,
+              items: values.items,
+              subtotal: subtotal,
+              advance: advance,
+              balance: balance,
+              status: "In Progress",
+              createdAt: new Date(),
+            });
+    
+            return orderDocRef.id;
+          });
+    
+          toast({
+            title: "Order Created!",
+            description: "What would you like to do next?",
+            duration: 10000,
+            action: (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/orders?invoice=${newOrderId}`)}>
+                  Generate Invoice
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/orders?receipt=${newOrderId}`)}>
+                  Measurement Slip
+                </Button>
+              </div>
+            ),
+          });
+          form.reset();
+    
+        } catch (error: any) {
+          console.error("Transaction failed: ", error);
+          if (error.message.includes("Customer")) {
+            toast({ variant: 'destructive', title: "Error", description: error.message });
+          } else {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'orders', operation: 'create'}));
+          }
         }
-    }
+      }
 
     const formatCurrency = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
 
@@ -539,5 +569,3 @@ export default function NewOrderPage() {
     </Form>
     );
 }
-
-    
