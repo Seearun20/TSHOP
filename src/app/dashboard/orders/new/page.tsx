@@ -383,7 +383,6 @@ export default function NewOrderPage() {
             };
             transaction.set(orderDocRef, newOrderData);
             
-            // For post-creation actions
             setLastCreatedOrder({
               id: orderDocRef.id,
               customerName: finalCustomerName,
@@ -395,9 +394,17 @@ export default function NewOrderPage() {
     
           toast({
             title: "Order Created Successfully!",
-            description: `Order #${(lastCreatedOrder?.orderNumber || '')} has been saved.`,
+            description: `Order #${(lastCreatedOrder?.orderNumber || '') + 1} has been saved. You can now generate the invoice or measurement slip.`,
           });
-          form.reset();
+          form.reset({
+            customerType: 'existing',
+            customerId: '',
+            newCustomerName: '',
+            newCustomerPhone: '',
+            deliveryDate: undefined,
+            items: [],
+            advance: 0,
+          });
     
         } catch (error: any) {
           console.error("Transaction failed: ", error);
@@ -415,36 +422,6 @@ export default function NewOrderPage() {
       if (!lastCreatedOrder) return;
       const url = `/print/${type}/${lastCreatedOrder.id}`;
       window.open(url, '_blank');
-    }
-
-    const startNewOrder = () => {
-        setLastCreatedOrder(null);
-        form.reset({
-            customerType: 'existing',
-            items: [],
-            advance: 0,
-        });
-    }
-
-    if (lastCreatedOrder) {
-        return (
-            <div className="space-y-8">
-                <PageHeader title={`Order #${lastCreatedOrder.orderNumber} Created`} subtitle="The order has been successfully saved."/>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>What's next?</CardTitle>
-                        <CardDescription>You can now generate the invoice or measurement slip for the tailor.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col sm:flex-row gap-4">
-                        <Button onClick={() => handlePrint('invoice')}><Printer className="mr-2"/>Generate Invoice</Button>
-                        <Button onClick={() => handlePrint('receipt')} variant="outline"><Printer className="mr-2"/>Generate Measurement Slip</Button>
-                    </CardContent>
-                    <CardFooter>
-                         <Button onClick={startNewOrder}><PlusCircle className="mr-2"/>Create Another Order</Button>
-                    </CardFooter>
-                </Card>
-            </div>
-        )
     }
 
     return (
@@ -594,6 +571,14 @@ export default function NewOrderPage() {
                              </Button>
                              <FormField control={form.control} name="items" render={() => <FormMessage/>}/>
                          </CardContent>
+                         <CardFooter className="flex flex-col gap-2">
+                            <Button onClick={() => handlePrint('invoice')} variant="outline" className="w-full" disabled={!lastCreatedOrder}>
+                                <Printer className="mr-2"/>Generate Invoice
+                            </Button>
+                            <Button onClick={() => handlePrint('receipt')} variant="outline" className="w-full" disabled={!lastCreatedOrder}>
+                                <Printer className="mr-2"/>Generate Measurement Slip
+                            </Button>
+                         </CardFooter>
                      </Card>
                 </div>
             </div>
@@ -602,3 +587,5 @@ export default function NewOrderPage() {
     </Form>
     );
 }
+
+    
