@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { serviceCharges } from "@/lib/data";
 import { Separator } from "@/components/ui/separator";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -44,8 +44,9 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { Loader2, PlusCircle, Ruler, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { MeasurementsForm } from "@/components/dashboard/measurements-form";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 const orderSchema = z.object({
   customerType: z.enum(['existing', 'new']),
@@ -79,6 +80,156 @@ interface CartItem {
     details?: string;
 }
 
+
+const measurementSchema = z.object({
+  shirtLength: z.string().optional(),
+  pantLength: z.string().optional(),
+  chest: z.string().optional(),
+  sleeve: z.string().optional(),
+  shoulder: z.string().optional(),
+  waist: z.string().optional(),
+  hip: z.string().optional(),
+  notes: z.string().optional(),
+});
+type MeasurementFormValues = z.infer<typeof measurementSchema>;
+
+
+const StitchingServiceForm = memo(function StitchingServiceForm({ customer, onAddToCart, setOpen }: { customer?: Customer, onAddToCart: (item: CartItem, measurements?: MeasurementFormValues) => void, setOpen: (open: boolean) => void }) {
+    const { toast } = useToast();
+    const [apparelType, setApparelType] = useState('');
+    const [price, setPrice] = useState(0);
+    const [isOwnFabric, setIsOwnFabric] = useState(false);
+    
+    const form = useForm<MeasurementFormValues>({
+        resolver: zodResolver(measurementSchema),
+        defaultValues: customer?.measurements || {},
+    });
+
+    useEffect(() => {
+        form.reset(customer?.measurements || {});
+    }, [customer, form]);
+
+    const showField = (fieldName: keyof MeasurementFormValues) => {
+        const type = apparelType.toLowerCase();
+        if (!type) return false;
+        if (type.includes('shirt') || type.includes('kurta')) {
+            return ['shirtLength', 'chest', 'sleeve', 'shoulder', 'notes'].includes(fieldName);
+        }
+        if (type.includes('pant') || type.includes('pyjama')) {
+            return ['pantLength', 'waist', 'hip', 'notes'].includes(fieldName);
+        }
+        if (type.includes('suit') || type.includes('sherwani') || type.includes('blazer')) {
+            return true; // Show all fields for suits/sherwanis
+        }
+        return false;
+    }
+
+    const fields: {name: keyof MeasurementFormValues, label: string}[] = [
+      { name: "shirtLength", label: "Shirt Length" },
+      { name: "sleeve", label: "Sleeve" },
+      { name: "shoulder", label: "Shoulder" },
+      { name: "chest", label: "Chest" },
+      { name: "pantLength", label: "Pant Length" },
+      { name: "waist", label: "Waist" },
+      { name: "hip", label: "Hip" },
+    ];
+
+    const visibleFields = fields.filter(f => showField(f.name));
+
+    const handleSubmit = (measurements: MeasurementFormValues) => {
+        if (!apparelType || price <= 0) {
+            toast({
+                variant: "destructive",
+                title: "Missing Details",
+                description: "Please select an apparel type and set a price."
+            });
+            return;
+        }
+
+        const newItem: CartItem = {
+            id: `serv-${apparelType}-${Date.now()}`,
+            name: apparelType,
+            type: 'Stitching',
+            price: price,
+            quantity: 1,
+            details: `Stitching Service ${isOwnFabric ? '(Own Fabric)' : ''}`,
+        };
+
+        onAddToCart(newItem, measurements);
+        setOpen(false);
+    }
+    
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                <DialogHeader>
+                    <DialogTitle>Add Stitching Service</DialogTitle>
+                    <DialogDescription>Record measurements and charges for tailoring.</DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                    <FormItem>
+                        <FormLabel>Apparel Type</FormLabel>
+                        <Select value={apparelType} onValueChange={setApparelType}>
+                            <SelectTrigger><SelectValue placeholder="Select a service" /></SelectTrigger>
+                            <SelectContent>
+                                {Object.keys(serviceCharges).map((service) => (
+                                    <SelectItem key={service} value={service}>{service}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </FormItem>
+                    
+                    {visibleFields.length > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {visibleFields.map(f => (
+                                <FormField key={f.name} control={form.control} name={f.name}
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>{f.label}</FormLabel>
+                                        <FormControl><Input placeholder="in inches" {...field} /></FormControl>
+                                    </FormItem>
+                                    )}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {showField('notes') && (
+                        <FormField control={form.control} name="notes"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Notes</FormLabel>
+                                <FormControl><Textarea placeholder="Any other specific instructions..." {...field} /></FormControl>
+                            </FormItem>
+                            )}
+                        />
+                    )}
+
+                    <FormItem>
+                        <FormLabel>Stitching Price</FormLabel>
+                        <Input type="number" value={price} onChange={e => setPrice(Number(e.target.value))} placeholder="Stitching charges"/>
+                    </FormItem>
+                    
+                    <div className="flex items-center space-x-2">
+                        <Switch id="own-fabric" checked={isOwnFabric} onCheckedChange={setIsOwnFabric}/>
+                        <Label htmlFor="own-fabric">Customer's own fabric</Label>
+                    </div>
+
+                </div>
+
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={!apparelType || !customer}>
+                        Add to Cart
+                    </Button>
+                </DialogFooter>
+            </form>
+        </Form>
+    );
+});
+
+
 export default function NewOrderPage() {
     const { toast } = useToast();
     const [customers, setCustomers] = useState<Customer[]>([]);
@@ -86,12 +237,11 @@ export default function NewOrderPage() {
     const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [measurementDialogOpen, setMeasurementDialogOpen] = useState(false);
+    
+    // Dialog state
+    const [stitchingDialog, setStitchingDialog] = useState(false);
 
     // Item selection state
-    const [selectedService, setSelectedService] = useState('');
-    const [stitchingPrice, setStitchingPrice] = useState(0);
-
     const [selectedReadyMade, setSelectedReadyMade] = useState('');
     const [sellingPrice, setSellingPrice] = useState(0);
     
@@ -144,11 +294,7 @@ export default function NewOrderPage() {
 
     const handleAddToCart = (type: CartItem['type']) => {
         let newItem: CartItem | null = null;
-        if (type === 'Stitching' && selectedService && stitchingPrice > 0) {
-            newItem = { id: `serv-${selectedService}-${Date.now()}`, name: selectedService, type, price: stitchingPrice, quantity: 1, details: 'Stitching Service' };
-            setSelectedService('');
-            setStitchingPrice(0);
-        } else if (type === 'Ready-Made' && selectedReadyMade && sellingPrice > 0) {
+        if (type === 'Ready-Made' && selectedReadyMade && sellingPrice > 0) {
             const stockItem = readyMadeStock.find(i => i.id === selectedReadyMade);
             if (stockItem) {
                 newItem = { id: stockItem.id, name: stockItem.item, type, price: sellingPrice, quantity: 1, details: `Size: ${stockItem.size}` };
@@ -169,7 +315,6 @@ export default function NewOrderPage() {
             setAccessoryPrice(0);
         }
 
-
         if (newItem) {
             if (cart.find(item => item.id === newItem!.id && item.type === newItem!.type)) {
                 toast({ variant: 'destructive', title: "Item already in cart" });
@@ -180,6 +325,34 @@ export default function NewOrderPage() {
              toast({ variant: 'destructive', title: "Missing Details", description: "Please fill in all details for the item." });
         }
     };
+    
+    const handleStitchingAddToCart = async (item: CartItem, measurements?: MeasurementFormValues) => {
+        if (cart.find(cartItem => cartItem.id === item.id)) {
+            toast({ variant: 'destructive', title: "Item already in cart" });
+            return;
+        }
+        setCart(prev => [...prev, item]);
+
+        if (measurements && selectedCustomer) {
+            const customerDoc = doc(db, "customers", selectedCustomer.id);
+            const updatedMeasurements = { ...selectedCustomer.measurements, ...measurements };
+            try {
+                await updateDoc(customerDoc, { measurements: updatedMeasurements });
+                toast({
+                    title: "Measurements Saved",
+                    description: `Measurements for ${selectedCustomer.name} have been updated.`,
+                });
+            } catch (error) {
+                const permissionError = new FirestorePermissionError({
+                    path: customerDoc.path,
+                    operation: "update",
+                    requestResourceData: { measurements: updatedMeasurements },
+                });
+                errorEmitter.emit("permission-error", permissionError);
+            }
+        }
+    };
+
 
     const handleRemoveFromCart = (itemId: string) => {
         setCart(prev => prev.filter(item => item.id !== itemId));
@@ -299,40 +472,16 @@ export default function NewOrderPage() {
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {/* Add Stitching Service */}
-                            <div className="flex items-end gap-2">
-                                <div className="flex-grow">
-                                    <Label>Stitching Service</Label>
-                                    <Select value={selectedService} onValueChange={setSelectedService}>
-                                        <SelectTrigger><SelectValue placeholder="Select a service" /></SelectTrigger>
-                                        <SelectContent>
-                                            {Object.keys(serviceCharges).map((service) => (
-                                                <SelectItem key={service} value={service}>{service}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                 <div className="w-32">
-                                    <Label>Stitching Price</Label>
-                                    <Input type="number" value={stitchingPrice} onChange={e => setStitchingPrice(Number(e.target.value))} placeholder="Price" />
-                                </div>
-                                <Dialog open={measurementDialogOpen} onOpenChange={setMeasurementDialogOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button type="button" variant="outline" disabled={!selectedService || !selectedCustomer}>
-                                            <Ruler className="mr-2"/> Measurements
-                                        </Button>
-                                    </DialogTrigger>
-                                    {selectedCustomer && selectedService && (
-                                        <DialogContent>
-                                            <DialogHeader>
-                                                <DialogTitle>Measurements for {selectedService}</DialogTitle>
-                                                <DialogDescription>Enter measurements for {selectedCustomer.name}.</DialogDescription>
-                                            </DialogHeader>
-                                            <MeasurementsForm setOpen={setMeasurementDialogOpen} customer={selectedCustomer} service={selectedService} />
-                                        </DialogContent>
-                                    )}
-                                </Dialog>
-                                <Button type="button" onClick={() => handleAddToCart('Stitching')} disabled={!selectedService}><PlusCircle className="mr-2"/> Add</Button>
-                            </div>
+                            <Dialog open={stitchingDialog} onOpenChange={setStitchingDialog}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" className="w-full" disabled={!selectedCustomer} onClick={() => setStitchingDialog(true)}>
+                                        <Ruler className="mr-2 h-4 w-4"/> Add Stitching Service
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl">
+                                    <StitchingServiceForm customer={selectedCustomer} onAddToCart={handleStitchingAddToCart} setOpen={setStitchingDialog}/>
+                                </DialogContent>
+                            </Dialog>
                             
                             {/* Add Ready Made */}
                             <div className="flex items-end gap-2">
@@ -469,3 +618,5 @@ export default function NewOrderPage() {
         </div>
     );
 }
+
+    
