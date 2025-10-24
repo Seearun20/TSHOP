@@ -38,12 +38,14 @@ import { Customer } from "@/app/dashboard/customers/page";
 import { ReadyMadeStockItem } from "@/app/dashboard/stock/readymade/page";
 import { FabricStockItem } from "@/app/dashboard/stock/fabric/page";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, addDoc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, doc, updateDoc } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { Loader2, PlusCircle, Trash2 } from "lucide-react";
+import { Loader2, PlusCircle, Ruler, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { MeasurementsForm } from "@/components/dashboard/measurements-form";
 
 const orderSchema = z.object({
   customerType: z.enum(['existing', 'new']),
@@ -84,6 +86,7 @@ export default function NewOrderPage() {
     const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [measurementDialogOpen, setMeasurementDialogOpen] = useState(false);
 
     // Item selection state
     const [selectedService, setSelectedService] = useState('');
@@ -131,10 +134,13 @@ export default function NewOrderPage() {
     });
 
     const customerType = form.watch("customerType");
+    const customerId = form.watch("customerId");
     const advancePaid = form.watch("advancePaid") || 0;
 
     const subtotal = useMemo(() => cart.reduce((acc, item) => acc + item.price, 0), [cart]);
     const balanceDue = useMemo(() => subtotal - advancePaid, [subtotal, advancePaid]);
+    
+    const selectedCustomer = useMemo(() => customers.find(c => c.id === customerId), [customers, customerId]);
 
     const handleAddToCart = (type: CartItem['type']) => {
         let newItem: CartItem | null = null;
@@ -309,6 +315,22 @@ export default function NewOrderPage() {
                                     <Label>Stitching Price</Label>
                                     <Input type="number" value={stitchingPrice} onChange={e => setStitchingPrice(Number(e.target.value))} placeholder="Price" />
                                 </div>
+                                <Dialog open={measurementDialogOpen} onOpenChange={setMeasurementDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button type="button" variant="outline" disabled={!selectedService || !selectedCustomer}>
+                                            <Ruler className="mr-2"/> Measurements
+                                        </Button>
+                                    </DialogTrigger>
+                                    {selectedCustomer && selectedService && (
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>Measurements for {selectedService}</DialogTitle>
+                                                <DialogDescription>Enter measurements for {selectedCustomer.name}.</DialogDescription>
+                                            </DialogHeader>
+                                            <MeasurementsForm setOpen={setMeasurementDialogOpen} customer={selectedCustomer} service={selectedService} />
+                                        </DialogContent>
+                                    )}
+                                </Dialog>
                                 <Button type="button" onClick={() => handleAddToCart('Stitching')} disabled={!selectedService}><PlusCircle className="mr-2"/> Add</Button>
                             </div>
                             
@@ -447,5 +469,3 @@ export default function NewOrderPage() {
         </div>
     );
 }
-
-    

@@ -131,44 +131,31 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
   const isEditMode = !!customer;
 
   const onSubmit = async (values: CustomerFormValues) => {
-    if (isEditMode && customer) {
-      const customerDoc = doc(db, "customers", customer.id);
-      updateDoc(customerDoc, values)
-        .then(() => {
-          toast({
-            title: "Customer Updated!",
-            description: `Successfully updated ${values.name}.`,
-          });
-          setOpen(false);
-          form.reset();
-        })
-        .catch(async (error) => {
-          const permissionError = new FirestorePermissionError({
-            path: customerDoc.path,
-            operation: "update",
+    try {
+        if (isEditMode && customer) {
+            const customerDoc = doc(db, "customers", customer.id);
+            await updateDoc(customerDoc, values);
+            toast({
+                title: "Customer Updated!",
+                description: `Successfully updated ${values.name}.`,
+            });
+        } else {
+            await addDoc(collection(db, "customers"), values);
+            toast({
+                title: "Customer Added!",
+                description: `Successfully added ${values.name}.`,
+            });
+        }
+        setOpen(false);
+        form.reset();
+    } catch (error) {
+        const path = isEditMode && customer ? doc(db, "customers", customer.id).path : collection(db, "customers").path;
+        const permissionError = new FirestorePermissionError({
+            path,
+            operation: isEditMode ? "update" : "create",
             requestResourceData: values,
-          });
-          errorEmitter.emit("permission-error", permissionError);
         });
-    } else {
-      const customersCollection = collection(db, "customers");
-      addDoc(customersCollection, values)
-        .then(() => {
-          toast({
-            title: "Customer Added!",
-            description: `Successfully added ${values.name}.`,
-          });
-          setOpen(false);
-          form.reset();
-        })
-        .catch(async (error) => {
-          const permissionError = new FirestorePermissionError({
-            path: customersCollection.path,
-            operation: "create",
-            requestResourceData: values,
-          });
-          errorEmitter.emit("permission-error", permissionError);
-        });
+        errorEmitter.emit("permission-error", permissionError);
     }
   };
 
