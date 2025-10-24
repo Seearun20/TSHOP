@@ -94,6 +94,7 @@ export default function NewOrderPage() {
     
     const [selectedFabric, setSelectedFabric] = useState('');
     const [fabricLength, setFabricLength] = useState(1);
+    const [fabricPrice, setFabricPrice] = useState(0);
 
     const [accessoryName, setAccessoryName] = useState('');
     const [accessoryPrice, setAccessoryPrice] = useState(0);
@@ -148,13 +149,13 @@ export default function NewOrderPage() {
                 setSelectedReadyMade('');
                 setSellingPrice(0);
             }
-        } else if (type === 'Fabric' && selectedFabric) {
+        } else if (type === 'Fabric' && selectedFabric && fabricPrice > 0) {
             const stockItem = fabricStock.find(f => f.id === selectedFabric);
             if (stockItem && fabricLength > 0) {
-                const price = stockItem.costPerMtr * fabricLength;
-                newItem = { id: stockItem.id, name: stockItem.type, type, price, quantity: fabricLength, details: `${fabricLength} mtr @ ${formatCurrency(stockItem.costPerMtr)}/mtr` };
+                newItem = { id: stockItem.id, name: stockItem.type, type, price: fabricPrice, quantity: fabricLength, details: `${fabricLength} mtr` };
                 setSelectedFabric('');
                 setFabricLength(1);
+                setFabricPrice(0);
             }
         } else if (type === 'Accessory' && accessoryName && accessoryPrice > 0) {
             newItem = { id: `acc-${accessoryName}-${Date.now()}`, name: accessoryName, type, price: accessoryPrice, quantity: 1, details: 'Accessory' };
@@ -343,6 +344,10 @@ export default function NewOrderPage() {
                                 <div className="w-24">
                                      <Label>Length (m)</Label>
                                      <Input type="number" value={fabricLength} onChange={(e) => setFabricLength(Number(e.target.value))} min="0.1" step="0.1" />
+                                </div>
+                                <div className="w-32">
+                                     <Label>Total Price</Label>
+                                     <Input type="number" value={fabricPrice} onChange={(e) => setFabricPrice(Number(e.target.value))} placeholder="Price"/>
                                 </div>
                                 <Button type="button" onClick={() => handleAddToCart('Fabric')} disabled={!selectedFabric || fabricLength <= 0}><PlusCircle className="mr-2"/> Add</Button>
                             </div>
