@@ -159,7 +159,7 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
     const { toast } = useToast();
 
     const getApparelKey = (apparelName: string) => {
-      return apparelName.toLowerCase().replace(/ /g, '').replace('+', '');
+      return apparelName.toLowerCase().replace(/\s/g, '').replace(/\+/g, '');
     }
 
     const handleFetchMeasurements = () => {
@@ -186,7 +186,7 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
     }
 
 
-    const handleAdd = async () => {
+    const handleAdd = () => {
         if (!apparel || price <= 0) {
             // Basic validation
             return;
@@ -200,7 +200,14 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
             const updatePayload: { [key: string]: any } = {};
             updatePayload[`measurements.${apparelKey}`] = measurements;
             
-            updateDoc(customerDoc, updatePayload, { merge: true }).catch(error => {
+            updateDoc(customerDoc, updatePayload)
+              .then(() => {
+                toast({
+                  title: 'Measurements Saved',
+                  description: `Measurements for ${apparel} have been saved to the customer's profile.`
+                })
+              })
+              .catch(error => {
                console.error("Failed to save measurements:", error);
                toast({
                    variant: "destructive",
@@ -386,11 +393,16 @@ export default function NewOrderPage() {
         }
     }
     
-    const onSubmit = async (values: OrderFormValues) => {
+    const onSubmit = (values: OrderFormValues) => {
       runTransaction(db, async (transaction) => {
         // --- 1. READS ---
         const counterRef = doc(db, "counters", "orders");
         const counterDoc = await transaction.get(counterRef);
+
+        let newOrderNumber = 1001;
+        if (counterDoc.exists()) {
+          newOrderNumber = counterDoc.data().lastOrderNumber + 1;
+        }
 
         let finalCustomerId = values.customerId;
         let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
@@ -412,10 +424,6 @@ export default function NewOrderPage() {
           throw new Error("Customer not selected or created.");
         }
         
-        let newOrderNumber = 1001;
-        if (counterDoc.exists()) {
-          newOrderNumber = counterDoc.data().lastOrderNumber + 1;
-        }
         transaction.set(counterRef, { lastOrderNumber: newOrderNumber }, { merge: true });
 
         values.items.forEach(item => {
@@ -662,6 +670,8 @@ export default function NewOrderPage() {
         </form>
     </Form>
     );
+
+    
 
     
 
