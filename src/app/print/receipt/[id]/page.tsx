@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -81,38 +82,45 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
   }
 
   return (
-    <div className="print-content bg-white text-black p-4">
-      <div className="text-center mb-4">
-          <h1 className="font-bold text-xl">Measurement Slip</h1>
-          <p className="text-sm">Order #{order.orderNumber}</p>
+    <div className="print-content bg-white text-black">
+      <div className="receipt-container p-4">
+        <div className="text-center mb-2">
+            <h1 className="font-bold text-lg">Measurement Slip</h1>
+            <p className="text-xs">Order #{order.orderNumber}</p>
+        </div>
+        <div className="my-2 border-t border-dashed border-black"></div>
+        <div className="space-y-1 text-xs">
+            <div className="flex justify-between"><span>Customer:</span><span className="font-medium">{customer?.name}</span></div>
+            <div className="flex justify-between"><span>Delivery:</span><span className="font-medium">{order.deliveryDate ? new Date((order.deliveryDate as any).seconds * 1000).toLocaleDateString() : 'N/A'}</span></div>
+        </div>
+        <div className="my-2 border-t border-dashed border-black"></div>
+        
+        {stitchingItems.map((item, index) => (
+            <div key={index} className="space-y-2 mt-3 break-inside-avoid">
+                <h4 className="font-semibold text-center uppercase tracking-wider text-sm">{item.details.apparel}</h4>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-xs">
+                    {Object.entries(item.details.measurements).map(([key, value]) => value && (
+                        <div key={key} className="flex justify-between items-end border-b border-dotted">
+                            <span className="capitalize text-gray-600">{key.replace(/([A-Z])/g, ' $1')}:</span>
+                            <span className="font-bold">{value as string}</span>
+                        </div>
+                    ))}
+                </div>
+                 {item.details.isOwnFabric && <p className="text-center text-[10px] font-semibold pt-1">(Customer's Own Fabric)</p>}
+            </div>
+        ))}
+        <div className="my-2 border-t border-dashed border-black"></div>
+        <p className="text-[10px] text-center text-gray-500">Raghav Tailor & Fabric | {new Date().toLocaleString()}</p>
       </div>
-      <div className="my-4 border-t border-dashed border-black"></div>
-      <div className="space-y-2 text-sm">
-          <div className="flex justify-between"><span>Customer:</span><span className="font-medium">{customer?.name}</span></div>
-          <div className="flex justify-between"><span>Delivery:</span><span className="font-medium">{order.deliveryDate ? new Date((order.deliveryDate as any).seconds * 1000).toLocaleDateString() : 'N/A'}</span></div>
-      </div>
-      <div className="my-4 border-t border-dashed border-black"></div>
-      
-      {stitchingItems.map((item, index) => (
-          <div key={index} className="space-y-3 mt-4 break-inside-avoid">
-              <h4 className="font-semibold text-center uppercase tracking-wider">{item.details.apparel}</h4>
-              <div className="grid grid-cols-2 gap-x-8 gap-y-2 font-mono text-sm">
-                  {Object.entries(item.details.measurements).map(([key, value]) => value && (
-                      <div key={key} className="flex justify-between items-end border-b border-dotted">
-                          <span className="capitalize text-gray-600">{key.replace(/([A-Z])/g, ' $1')}:</span>
-                          <span className="font-bold">{value as string}</span>
-                      </div>
-                  ))}
-              </div>
-               {item.details.isOwnFabric && <p className="text-center text-xs font-semibold pt-2">(Customer's Own Fabric)</p>}
-          </div>
-      ))}
-       <div className="my-4 border-t border-dashed border-black"></div>
-       <p className="text-xs text-center text-gray-500">Raghav Tailor & Fabric | {new Date().toLocaleString()}</p>
        <style jsx global>{`
         @media print {
+          @page {
+            size: 5in 5in;
+            margin: 0;
+          }
           body {
-            background-color: white;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
           body * {
             visibility: hidden;
@@ -125,6 +133,14 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
             left: 0;
             top: 0;
             width: 100%;
+            height: 100%;
+          }
+          .receipt-container {
+            width: 5in;
+            height: 5in;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
           }
         }
       `}</style>
