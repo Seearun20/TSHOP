@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -63,9 +63,15 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { Textarea } from "@/components/ui/textarea";
+
+export interface Leave {
+    date: string;
+    description: string;
+}
 
 export interface Employee {
     id: string;
@@ -73,7 +79,7 @@ export interface Employee {
     role: string;
     salary: number;
     balance: number;
-    leaves: number;
+    leaves: Leave[];
 }
 
 const employeeSchema = z.object({
@@ -114,7 +120,7 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
                     description: `Successfully updated ${values.name}.`,
                 });
             } else {
-                const newEmployee = { ...values, balance: 0, leaves: 0 };
+                const newEmployee = { ...values, balance: 0, leaves: [] };
                 await addDoc(collection(db, "employees"), newEmployee);
                 toast({
                     title: "Employee Added!",
@@ -182,6 +188,82 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
     );
 }
 
+function ManageLeavesDialog({ employee, setOpen }: { employee: Employee; setOpen: (open: boolean) => void; }) {
+    const { toast } = useToast();
+    const [description, setDescription] = useState('');
+
+    const handleAddLeave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!description) return;
+        const employeeDoc = doc(db, "employees", employee.id);
+        const newLeave = {
+            date: new Date().toISOString(),
+            description: description
+        };
+        try {
+            await updateDoc(employeeDoc, { leaves: arrayUnion(newLeave) });
+            toast({
+                title: "Leave Added",
+                description: `A new leave has been recorded for ${employee.name}.`
+            });
+            setDescription('');
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: employeeDoc.path, operation: 'update' }));
+        }
+    };
+
+    const handleRemoveLeave = async (leave: Leave) => {
+        const employeeDoc = doc(db, "employees", employee.id);
+        try {
+            await updateDoc(employeeDoc, { leaves: arrayRemove(leave) });
+            toast({
+                variant: 'destructive',
+                title: "Leave Removed",
+                description: `A leave has been removed for ${employee.name}.`
+            });
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: employeeDoc.path, operation: 'update' }));
+        }
+    };
+
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Manage Leaves</DialogTitle>
+                <DialogDescription>Add or remove leaves for {employee.name}. Current leaves: {employee.leaves?.length || 0}</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAddLeave} className="py-4 space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="leave-description">Leave Description</Label>
+                    <Textarea id="leave-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Family emergency" />
+                </div>
+                <Button type="submit" disabled={!description}>Add Leave</Button>
+            </form>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+                <h4 className="font-medium">Leave History</h4>
+                {employee.leaves && employee.leaves.length > 0 ? (
+                    employee.leaves.map((leave, index) => (
+                        <div key={index} className="flex justify-between items-center p-2 border rounded-md">
+                            <div>
+                                <p className="text-sm">{leave.description}</p>
+                                <p className="text-xs text-muted-foreground">{new Date(leave.date).toLocaleDateString()}</p>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => handleRemoveLeave(leave)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-sm text-muted-foreground">No leaves recorded.</p>
+                )}
+            </div>
+             <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+            </DialogFooter>
+        </DialogContent>
+    );
+}
+
 export default function EmployeesPage() {
     const { toast } = useToast();
     const [employees, setEmployees] = useState<Employee[]>([]);
@@ -229,25 +311,6 @@ export default function EmployeesPage() {
                 description: `Salary paid to ${currentEmployee.name}. Balance is now zero.`,
             });
             setDialogs(p => ({...p, pay: false}));
-        } catch (error) {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({path: employeeDoc.path, operation: 'update'}));
-        }
-    }
-
-    const handleUpdateLeaves = async (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (!currentEmployee) return;
-        const form = event.currentTarget;
-        const newLeaves = (form.elements.namedItem('leaves') as HTMLInputElement).value;
-        const employeeDoc = doc(db, "employees", currentEmployee.id);
-        
-        try {
-            await updateDoc(employeeDoc, { leaves: parseInt(newLeaves) });
-            toast({
-                title: "Leaves Updated",
-                description: `Leave balance updated for ${currentEmployee.name}.`,
-            });
-            setDialogs(p => ({...p, leaves: false}));
         } catch (error) {
              errorEmitter.emit('permission-error', new FirestorePermissionError({path: employeeDoc.path, operation: 'update'}));
         }
@@ -319,7 +382,7 @@ export default function EmployeesPage() {
                                     </TableCell>
                                     <TableCell>{formatCurrency(employee.salary)}</TableCell>
                                     <TableCell className={employee.balance > 0 ? "text-destructive" : ""}>{formatCurrency(employee.balance)}</TableCell>
-                                    <TableCell>{employee.leaves}</TableCell>
+                                    <TableCell>{employee.leaves?.length || 0}</TableCell>
                                     <TableCell>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
@@ -376,23 +439,8 @@ export default function EmployeesPage() {
                         </DialogContent>
                     </Dialog>
 
-                    <Dialog open={dialogs.leaves} onOpenChange={(open) => setDialogs(p => ({ ...p, leaves: open }))}>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Manage Leaves</DialogTitle>
-                                <DialogDescription>Update the leave balance for {currentEmployee.name}.</DialogDescription>
-                            </DialogHeader>
-                            <form onSubmit={handleUpdateLeaves} className="py-4 space-y-4">
-                               <div className="space-y-2">
-                                <Label htmlFor="leaves">Leaves Taken</Label>
-                                <Input id="leaves" name="leaves" type="number" defaultValue={currentEmployee.leaves}/>
-                               </div>
-                                <DialogFooter>
-                                    <Button variant="outline" type="button" onClick={() => setDialogs(p => ({ ...p, leaves: false }))}>Cancel</Button>
-                                    <Button type="submit">Update Leaves</Button>
-                                </DialogFooter>
-                            </form>
-                        </DialogContent>
+                    <Dialog open={dialogs.leaves} onOpenChange={(open) => setDialogs(p => ({...p, leaves: false}))}>
+                        <ManageLeavesDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, leaves: false}))}/>
                     </Dialog>
 
                     <AlertDialog open={dialogs.delete} onOpenChange={(open) => setDialogs(p => ({ ...p, delete: open }))}>
@@ -416,3 +464,5 @@ export default function EmployeesPage() {
 
         </div>
     );
+}
+    
