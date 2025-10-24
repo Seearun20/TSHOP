@@ -70,7 +70,7 @@ export default function DashboardLayout({
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-2">
-            <AppLogo className="w-8 h-8 text-sidebar-primary" />
+            <AppLogo className="w-8 h-8" />
             <span className="text-lg font-semibold font-headline text-sidebar-foreground">
               Raghav Tailors
             </span>

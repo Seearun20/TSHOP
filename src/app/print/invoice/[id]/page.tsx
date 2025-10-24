@@ -78,7 +78,7 @@ export default function InvoicePrintPage({ params }: { params: { id: string } })
         <CardHeader className="space-y-4">
           <div className="flex items-start justify-between">
             <div>
-              <AppLogo className="w-16 h-16 text-black" />
+              <AppLogo className="w-16 h-16" />
               <h1 className="text-2xl font-bold font-headline mt-2">Raghav Tailor & Fabric</h1>
               <p className="text-gray-600">123 Fashion Street, New Delhi, 110001</p>
             </div>
