@@ -16,7 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState, useMemo } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { Order, OrderItem } from "./orders/page";
 import { Customer } from "./customers/page";
 import { errorEmitter } from "@/firebase/error-emitter";
@@ -27,7 +27,7 @@ export default function DashboardPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
 
   useEffect(() => {
-    const ordersQuery = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(5));
+    const ordersQuery = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     const ordersUnsub = onSnapshot(ordersQuery, (snapshot) => {
       const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
       setOrders(ordersData);
@@ -48,9 +48,32 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const monthlySalesData = useMemo(() => {
+    const salesByMonth: { [key: string]: number } = {
+      Jan: 0, Feb: 0, Mar: 0, Apr: 0, May: 0, Jun: 0, Jul: 0, Aug: 0, Sep: 0, Oct: 0, Nov: 0, Dec: 0
+    };
+    
+    orders.forEach(order => {
+      // Ensure createdAt and seconds properties exist
+      if (order.createdAt && typeof order.createdAt.seconds === 'number') {
+        const orderDate = new Date(order.createdAt.seconds * 1000);
+        const month = orderDate.toLocaleString('default', { month: 'short' });
+        if (salesByMonth.hasOwnProperty(month)) {
+          salesByMonth[month] += order.subtotal;
+        }
+      }
+    });
+
+    return Object.keys(salesByMonth).map(month => ({
+      month,
+      sales: salesByMonth[month]
+    }));
+  }, [orders]);
+
+
   const recentOrders = useMemo(() => {
     const customerMap = new Map(customers.map(c => [c.id, c]));
-    return orders.map(order => ({
+    return orders.slice(0, 5).map(order => ({
       ...order,
       customerName: customerMap.get(order.customerId)?.name || "Unknown",
       customerEmail: customerMap.get(order.customerId)?.email || "",
@@ -81,7 +104,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
-          <SalesChart />
+          <SalesChart data={monthlySalesData} />
         </div>
         <Card>
           <CardHeader>

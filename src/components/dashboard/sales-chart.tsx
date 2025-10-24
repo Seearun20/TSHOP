@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -8,10 +9,13 @@ import {
   CardTitle,
   CardDescription
 } from "@/components/ui/card";
-import { salesChartData } from "@/lib/data";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-export function SalesChart() {
+interface SalesChartProps {
+    data: { month: string; sales: number }[];
+}
+
+export function SalesChart({ data }: SalesChartProps) {
   return (
     <Card className="shadow-lg">
         <CardHeader>
@@ -27,7 +31,7 @@ export function SalesChart() {
             },
           }} className="h-full w-full">
             <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={salesChartData} accessibilityLayer>
+            <BarChart data={data} accessibilityLayer>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="month" tickLine={false} axisLine={false} />
                 <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `₹${value / 1000}K`} />
