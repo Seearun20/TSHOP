@@ -45,7 +45,6 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Form,
@@ -60,11 +59,12 @@ import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, onSnapshot, doc, deleteDoc, DocumentData } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, DocumentData } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { Separator } from "@/components/ui/separator";
 
 export interface FabricStockItem {
     id: string;
@@ -75,22 +75,26 @@ export interface FabricStockItem {
     supplierPhone: string;
 }
 
-const addFabricSchema = z.object({
+const fabricSchema = z.object({
   type: z.string().min(1, { message: "Fabric type is required" }),
-  length: z.coerce.number().min(1, { message: "Length must be at least 1" }),
-  costPerMtr: z.coerce.number().min(1, { message: "Cost is required" }),
+  length: z.coerce.number().min(0, { message: "Length must be a positive number" }),
+  costPerMtr: z.coerce.number().min(0, { message: "Cost must be a positive number" }),
   supplier: z.string().min(1, { message: "Supplier name is required" }),
   supplierPhone: z.string().min(10, { message: "Supplier phone must be at least 10 digits" }),
 });
 
-function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
+type FabricFormValues = z.infer<typeof fabricSchema>;
+
+
+const FabricForm = memo(function FabricForm({ setOpen, fabricItem }: { setOpen: (open: boolean) => void; fabricItem?: FabricStockItem | null }) {
   const { toast } = useToast();
+  const isEditMode = !!fabricItem;
   
-  const form = useForm<z.infer<typeof addFabricSchema>>({
-    resolver: zodResolver(addFabricSchema),
-    defaultValues: {
+  const form = useForm<FabricFormValues>({
+    resolver: zodResolver(fabricSchema),
+    defaultValues: fabricItem || {
       type: "",
-      length: 1,
+      length: 0,
       costPerMtr: 0,
       supplier: "",
       supplierPhone: "",
@@ -99,20 +103,29 @@ function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
 
   const { formState: { isSubmitting } } = form;
 
-  const onSubmit = async (values: z.infer<typeof addFabricSchema>) => {
-    const fabricStockCollection = collection(db, "fabricStock");
+  const onSubmit = async (values: FabricFormValues) => {
     try {
-        await addDoc(fabricStockCollection, values);
-        toast({
-            title: "Success!",
-            description: `Successfully added ${values.length} meters of ${values.type} to stock.`,
-        });
+        if (isEditMode && fabricItem) {
+            const fabricDoc = doc(db, "fabricStock", fabricItem.id);
+            await updateDoc(fabricDoc, values);
+            toast({
+                title: "Fabric Updated!",
+                description: `Successfully updated ${values.type}.`,
+            });
+        } else {
+            await addDoc(collection(db, "fabricStock"), values);
+            toast({
+                title: "Fabric Added!",
+                description: `Successfully added ${values.length} meters of ${values.type}.`,
+            });
+        }
         setOpen(false);
         form.reset();
     } catch (error) {
+        const path = isEditMode && fabricItem ? doc(db, "fabricStock", fabricItem.id).path : collection(db, "fabricStock").path;
         const permissionError = new FirestorePermissionError({
-            path: fabricStockCollection.path,
-            operation: "create",
+            path,
+            operation: isEditMode ? "update" : "create",
             requestResourceData: values,
         });
         errorEmitter.emit("permission-error", permissionError);
@@ -143,7 +156,7 @@ function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
               <FormItem>
                   <FormLabel>Length (mtrs)</FormLabel>
                   <FormControl>
-                  <Input type="number" {...field} />
+                  <Input type="number" step="0.01" {...field} />
                   </FormControl>
                   <FormMessage />
               </FormItem>
@@ -156,13 +169,15 @@ function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
               <FormItem>
                   <FormLabel>Cost per Meter</FormLabel>
                   <FormControl>
-                  <Input type="number" placeholder="Cost per meter" {...field} />
+                  <Input type="number" step="0.01" placeholder="Cost per meter" {...field} />
                   </FormControl>
                   <FormMessage />
               </FormItem>
               )}
           />
         </div>
+        <Separator />
+        <h3 className="text-sm font-medium text-muted-foreground">Supplier Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
@@ -192,29 +207,75 @@ function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
             />
         </div>
         <DialogFooter>
-          <Button
-            type="submit"
-            className="w-full sm:w-auto"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              "Add to Inventory"
-            )}
-          </Button>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="animate-spin" /> : (isEditMode ? "Save Changes" : "Add to Inventory")}
+            </Button>
         </DialogFooter>
       </form>
     </Form>
   );
-}
+});
 
+const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+    }).format(amount);
+};
+
+function ViewFabricDetailsDialog({ fabricItem, setOpen }: { fabricItem: FabricStockItem, setOpen: (open: boolean) => void }) {
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>{fabricItem.type}</DialogTitle>
+                <DialogDescription>Details for the selected fabric.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p className="text-muted-foreground">Length</p>
+                        <p className="font-medium">{fabricItem.length} meters</p>
+                    </div>
+                    <div>
+                        <p className="text-muted-foreground">Cost per Meter</p>
+                        <p className="font-medium">{formatCurrency(fabricItem.costPerMtr)}</p>
+                    </div>
+                    <div>
+                        <p className="text-muted-foreground">Total Cost Value</p>
+                        <p className="font-medium">{formatCurrency(fabricItem.length * fabricItem.costPerMtr)}</p>
+                    </div>
+                </div>
+                <Separator />
+                <h4 className="font-medium text-muted-foreground">Supplier Information</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p className="text-muted-foreground">Supplier Name</p>
+                        <p className="font-medium">{fabricItem.supplier}</p>
+                    </div>
+                    <div>
+                        <p className="text-muted-foreground">Supplier Phone</p>
+                        <p className="font-medium">{fabricItem.supplierPhone}</p>
+                    </div>
+                </div>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+            </DialogFooter>
+        </DialogContent>
+    )
+}
 
 export default function FabricStockPage() {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
   const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
   const [currentItem, setCurrentItem] = useState<FabricStockItem | null>(null);
+  const [dialogs, setDialogs] = useState({
+      add: false,
+      edit: false,
+      view: false,
+      delete: false,
+  });
 
   useEffect(() => {
     const fabricStockCollection = collection(db, "fabricStock");
@@ -222,7 +283,7 @@ export default function FabricStockPage() {
         const stockData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FabricStockItem));
         setFabricStock(stockData);
     },
-    async (error) => {
+    (error) => {
         const permissionError = new FirestorePermissionError({
           path: fabricStockCollection.path,
           operation: "list",
@@ -232,14 +293,12 @@ export default function FabricStockPage() {
     return () => unsubscribe();
   }, []);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-    }).format(amount);
+  const handleActionClick = (item: FabricStockItem, dialog: keyof typeof dialogs) => {
+    setCurrentItem(item);
+    setDialogs(prev => ({ ...prev, [dialog]: true }));
   };
 
-   const handleDelete = async () => {
+  const handleDelete = async () => {
     if (!currentItem) return;
     const fabricDoc = doc(db, "fabricStock", currentItem.id);
     deleteDoc(fabricDoc)
@@ -250,21 +309,22 @@ export default function FabricStockPage() {
                 description: `${currentItem.type} has been removed from your inventory.`
             });
         })
-        .catch(async (error) => {
+        .catch((error) => {
             const permissionError = new FirestorePermissionError({
                 path: fabricDoc.path,
                 operation: "delete",
             });
             errorEmitter.emit("permission-error", permissionError);
         });
+    setDialogs(prev => ({ ...prev, delete: false }));
   }
 
   return (
     <div className="space-y-8">
       <PageHeader title="Fabric Stock" subtitle="Manage your fabric inventory.">
-         <Dialog open={open} onOpenChange={setOpen}>
+         <Dialog open={dialogs.add} onOpenChange={(open) => setDialogs(p => ({...p, add: open}))}>
             <DialogTrigger asChild>
-                <Button>
+                <Button onClick={() => { setCurrentItem(null); setDialogs(p => ({...p, add: true})) }}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Fabric
                 </Button>
             </DialogTrigger>
@@ -275,7 +335,7 @@ export default function FabricStockPage() {
                     Fill in the details below to add new fabric to your inventory.
                 </DialogDescription>
                 </DialogHeader>
-                <AddFabricForm setOpen={setOpen}/>
+                <FabricForm setOpen={(open) => setDialogs(p => ({...p, add: open}))}/>
             </DialogContent>
         </Dialog>
       </PageHeader>
@@ -307,41 +367,23 @@ export default function FabricStockPage() {
                   <TableCell>{formatCurrency(item.costPerMtr)}</TableCell>
                   <TableCell>{item.supplier}</TableCell>
                   <TableCell>
-                    <AlertDialog>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>Edit</DropdownMenuItem>
-                            <DropdownMenuItem>View Details</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <AlertDialogTrigger asChild>
-                                <DropdownMenuItem className="text-destructive" onSelect={() => setCurrentItem(item)}>
-                                Delete
-                                </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                         <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the fabric.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Back</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleDelete}>
-                                Yes, Delete Fabric
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onSelect={() => handleActionClick(item, 'edit')}>Edit</DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => handleActionClick(item, 'view')}>View Details</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-destructive" onSelect={() => handleActionClick(item, 'delete')}>
+                              Delete
+                          </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -349,6 +391,42 @@ export default function FabricStockPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {currentItem && (
+        <>
+            <Dialog open={dialogs.edit} onOpenChange={(open) => setDialogs(p => ({...p, edit: open}))}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Fabric Details</DialogTitle>
+                        <DialogDescription>Update the details for {currentItem.type}.</DialogDescription>
+                    </DialogHeader>
+                    <FabricForm setOpen={(open) => setDialogs(p => ({...p, edit: open}))} fabricItem={currentItem} />
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={dialogs.view} onOpenChange={(open) => setDialogs(p => ({...p, view: open}))}>
+                <ViewFabricDetailsDialog fabricItem={currentItem} setOpen={(open) => setDialogs(p => ({...p, view: open}))}/>
+            </Dialog>
+
+            <AlertDialog open={dialogs.delete} onOpenChange={(open) => setDialogs(p => ({...p, delete: open}))}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the {currentItem.type} fabric.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Back</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+                        Yes, Delete Fabric
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
+      )}
+
     </div>
   );
 }
