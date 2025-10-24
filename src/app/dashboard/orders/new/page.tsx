@@ -38,7 +38,7 @@ import { Customer } from "@/app/dashboard/customers/page";
 import { ReadyMadeStockItem } from "@/app/dashboard/stock/readymade/page";
 import { FabricStockItem } from "@/app/dashboard/stock/fabric/page";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, addDoc } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Loader2, PlusCircle, Trash2 } from "lucide-react";
@@ -71,7 +71,7 @@ type OrderFormValues = z.infer<typeof orderSchema>;
 interface CartItem {
     id: string;
     name: string;
-    type: 'Stitching' | 'Ready-Made' | 'Fabric';
+    type: 'Stitching' | 'Ready-Made' | 'Fabric' | 'Accessory';
     price: number;
     quantity: number;
     details?: string;
@@ -87,9 +87,17 @@ export default function NewOrderPage() {
 
     // Item selection state
     const [selectedService, setSelectedService] = useState('');
+    const [stitchingPrice, setStitchingPrice] = useState(0);
+
     const [selectedReadyMade, setSelectedReadyMade] = useState('');
+    const [sellingPrice, setSellingPrice] = useState(0);
+    
     const [selectedFabric, setSelectedFabric] = useState('');
     const [fabricLength, setFabricLength] = useState(1);
+
+    const [accessoryName, setAccessoryName] = useState('');
+    const [accessoryPrice, setAccessoryPrice] = useState(0);
+
 
     useEffect(() => {
         const collections = {
@@ -129,29 +137,40 @@ export default function NewOrderPage() {
 
     const handleAddToCart = (type: CartItem['type']) => {
         let newItem: CartItem | null = null;
-        if (type === 'Stitching' && selectedService) {
-            const price = serviceCharges[selectedService as keyof typeof serviceCharges];
-            newItem = { id: `serv-${selectedService}`, name: selectedService, type, price, quantity: 1, details: 'Stitching Service' };
-        } else if (type === 'Ready-Made' && selectedReadyMade) {
+        if (type === 'Stitching' && selectedService && stitchingPrice > 0) {
+            newItem = { id: `serv-${selectedService}-${Date.now()}`, name: selectedService, type, price: stitchingPrice, quantity: 1, details: 'Stitching Service' };
+            setSelectedService('');
+            setStitchingPrice(0);
+        } else if (type === 'Ready-Made' && selectedReadyMade && sellingPrice > 0) {
             const stockItem = readyMadeStock.find(i => i.id === selectedReadyMade);
             if (stockItem) {
-                newItem = { id: stockItem.id, name: stockItem.item, type, price: stockItem.cost, quantity: 1, details: `Size: ${stockItem.size}` };
+                newItem = { id: stockItem.id, name: stockItem.item, type, price: sellingPrice, quantity: 1, details: `Size: ${stockItem.size}` };
+                setSelectedReadyMade('');
+                setSellingPrice(0);
             }
         } else if (type === 'Fabric' && selectedFabric) {
             const stockItem = fabricStock.find(f => f.id === selectedFabric);
             if (stockItem && fabricLength > 0) {
                 const price = stockItem.costPerMtr * fabricLength;
                 newItem = { id: stockItem.id, name: stockItem.type, type, price, quantity: fabricLength, details: `${fabricLength} mtr @ ${formatCurrency(stockItem.costPerMtr)}/mtr` };
+                setSelectedFabric('');
+                setFabricLength(1);
             }
+        } else if (type === 'Accessory' && accessoryName && accessoryPrice > 0) {
+            newItem = { id: `acc-${accessoryName}-${Date.now()}`, name: accessoryName, type, price: accessoryPrice, quantity: 1, details: 'Accessory' };
+            setAccessoryName('');
+            setAccessoryPrice(0);
         }
 
+
         if (newItem) {
-            // Check if item already in cart to avoid duplicates
             if (cart.find(item => item.id === newItem!.id && item.type === newItem!.type)) {
                 toast({ variant: 'destructive', title: "Item already in cart" });
                 return;
             }
             setCart(prev => [...prev, newItem!]);
+        } else {
+             toast({ variant: 'destructive', title: "Missing Details", description: "Please fill in all details for the item." });
         }
     };
 
@@ -159,7 +178,7 @@ export default function NewOrderPage() {
         setCart(prev => prev.filter(item => item.id !== itemId));
     };
 
-    const onSubmit = (data: OrderFormValues) => {
+    const onSubmit = async (data: OrderFormValues) => {
         if (cart.length === 0) {
             toast({ variant: 'destructive', title: "Cart is empty", description: "Please add items to the order before generating a receipt." });
             return;
@@ -174,20 +193,26 @@ export default function NewOrderPage() {
             status: 'In Progress',
             createdAt: new Date().toISOString(),
         };
-        console.log("Generating Order:", orderData);
 
-        // Here you would add the logic to save the order to Firestore
-        // For now, just simulating it
-        setTimeout(() => {
-             toast({
+        const ordersCollection = collection(db, "orders");
+        try {
+            await addDoc(ordersCollection, orderData);
+            toast({
                 title: "Order Generated!",
                 description: "The order has been successfully created.",
             });
+            form.reset();
+            setCart([]);
+        } catch (error) {
+            const permissionError = new FirestorePermissionError({
+                path: ordersCollection.path,
+                operation: "create",
+                requestResourceData: orderData,
+            });
+            errorEmitter.emit("permission-error", permissionError);
+        } finally {
             setIsSubmitting(false);
-            // Optionally reset form and cart
-            // form.reset();
-            // setCart([]);
-        }, 1500)
+        }
     };
   
     const formatCurrency = (amount: number) => {
@@ -270,14 +295,18 @@ export default function NewOrderPage() {
                             <div className="flex items-end gap-2">
                                 <div className="flex-grow">
                                     <Label>Stitching Service</Label>
-                                    <Select onValueChange={setSelectedService}>
+                                    <Select value={selectedService} onValueChange={setSelectedService}>
                                         <SelectTrigger><SelectValue placeholder="Select a service" /></SelectTrigger>
                                         <SelectContent>
                                             {Object.keys(serviceCharges).map((service) => (
-                                                <SelectItem key={service} value={service}>{service} - {formatCurrency(serviceCharges[service as keyof typeof serviceCharges])}</SelectItem>
+                                                <SelectItem key={service} value={service}>{service}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                </div>
+                                 <div className="w-32">
+                                    <Label>Stitching Price</Label>
+                                    <Input type="number" value={stitchingPrice} onChange={e => setStitchingPrice(Number(e.target.value))} placeholder="Price" />
                                 </div>
                                 <Button type="button" onClick={() => handleAddToCart('Stitching')} disabled={!selectedService}><PlusCircle className="mr-2"/> Add</Button>
                             </div>
@@ -286,12 +315,16 @@ export default function NewOrderPage() {
                             <div className="flex items-end gap-2">
                                 <div className="flex-grow">
                                     <Label>Ready-Made Item</Label>
-                                    <Select onValueChange={setSelectedReadyMade}>
+                                    <Select value={selectedReadyMade} onValueChange={setSelectedReadyMade}>
                                         <SelectTrigger><SelectValue placeholder="Select an item" /></SelectTrigger>
                                         <SelectContent>
-                                            {readyMadeStock.map(i => <SelectItem key={i.id} value={i.id}>{i.item} ({i.size}) - {formatCurrency(i.cost)}</SelectItem>)}
+                                            {readyMadeStock.map(i => <SelectItem key={i.id} value={i.id}>{i.item} ({i.size})</SelectItem>)}
                                         </SelectContent>
                                     </Select>
+                                </div>
+                                <div className="w-32">
+                                    <Label>Selling Price</Label>
+                                    <Input type="number" value={sellingPrice} onChange={e => setSellingPrice(Number(e.target.value))} placeholder="Price" />
                                 </div>
                                 <Button type="button" onClick={() => handleAddToCart('Ready-Made')} disabled={!selectedReadyMade}><PlusCircle className="mr-2"/> Add</Button>
                             </div>
@@ -300,7 +333,7 @@ export default function NewOrderPage() {
                             <div className="flex items-end gap-2">
                                 <div className="flex-grow">
                                     <Label>Fabric</Label>
-                                    <Select onValueChange={setSelectedFabric}>
+                                    <Select value={selectedFabric} onValueChange={setSelectedFabric}>
                                         <SelectTrigger><SelectValue placeholder="Select a fabric" /></SelectTrigger>
                                         <SelectContent>
                                             {fabricStock.map(f => <SelectItem key={f.id} value={f.id}>{f.type} - {formatCurrency(f.costPerMtr)}/mtr</SelectItem>)}
@@ -312,6 +345,19 @@ export default function NewOrderPage() {
                                      <Input type="number" value={fabricLength} onChange={(e) => setFabricLength(Number(e.target.value))} min="0.1" step="0.1" />
                                 </div>
                                 <Button type="button" onClick={() => handleAddToCart('Fabric')} disabled={!selectedFabric || fabricLength <= 0}><PlusCircle className="mr-2"/> Add</Button>
+                            </div>
+
+                             {/* Add Accessory */}
+                            <div className="flex items-end gap-2">
+                                <div className="flex-grow">
+                                    <Label>Accessory</Label>
+                                    <Input value={accessoryName} onChange={e => setAccessoryName(e.target.value)} placeholder="Accessory name, e.g. Buttons" />
+                                </div>
+                                <div className="w-32">
+                                     <Label>Price</Label>
+                                     <Input type="number" value={accessoryPrice} onChange={(e) => setAccessoryPrice(Number(e.target.value))} placeholder="Price"/>
+                                </div>
+                                <Button type="button" onClick={() => handleAddToCart('Accessory')} disabled={!accessoryName || accessoryPrice <= 0}><PlusCircle className="mr-2"/> Add</Button>
                             </div>
                         </CardContent>
                     </Card>
@@ -325,7 +371,7 @@ export default function NewOrderPage() {
                             <CardContent>
                                 <div className="space-y-4">
                                     {cart.map(item => (
-                                        <div key={`${item.id}-${item.type}`} className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                                        <div key={item.id} className="flex items-center justify-between p-2 bg-muted rounded-lg">
                                             <div>
                                                 <p className="font-semibold">{item.name}</p>
                                                 <p className="text-sm text-muted-foreground">{item.details}</p>
