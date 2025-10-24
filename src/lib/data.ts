@@ -61,21 +61,6 @@ export const recentOrders = [
   },
 ];
 
-
-export const readyMadeStock = [
-  { id: "RM001", item: "Sherwani", size: "40", cost: 5000, supplier: "Gupta Textiles", quantity: 5 },
-  { id: "RM002", item: "3pc Suit", size: "42", cost: 7000, supplier: "Royal Suits", quantity: 3 },
-  { id: "RM003", item: "2pc Suit", size: "38", cost: 4500, supplier: "Royal Suits", quantity: 7 },
-  { id: "RM004", item: "Blazer", size: "M", cost: 3000, supplier: "Modern Attire", quantity: 10 },
-];
-
-export const fabricStock = [
-  { id: "FAB001", type: "Italian Wool", length: 50, costPerMtr: 1200, supplier: "Fabric Mart" },
-  { id: "FAB002", type: "Egyptian Cotton", length: 100, costPerMtr: 800, supplier: "Cotton Kings" },
-  { id: "FAB003", type: "Linen", length: 75, costPerMtr: 950, supplier: "Fabric Mart" },
-  { id: "FAB004", type: "Silk", length: 30, costPerMtr: 2500, supplier: "Silk Route" },
-];
-
 export interface Order {
     id: string;
     customerName: string;
