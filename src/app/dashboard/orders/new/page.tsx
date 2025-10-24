@@ -43,6 +43,7 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Label } from "@/components/ui/label";
 
 const orderSchema = z.object({
   customerType: z.enum(['existing', 'new']),
@@ -395,3 +396,5 @@ export default function NewOrderPage() {
         </div>
     );
 }
+
+    
