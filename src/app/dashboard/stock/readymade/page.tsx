@@ -26,7 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { readyMadeStock } from "@/lib/data";
 import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -37,6 +36,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -50,7 +60,7 @@ import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Select,
   SelectContent,
@@ -58,6 +68,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, onSnapshot, doc, deleteDoc, DocumentData } from "firebase/firestore";
+
+export interface ReadyMadeStockItem {
+    id: string;
+    item: string;
+    size: string;
+    quantity: number;
+    cost: number;
+    supplier: string;
+    supplierPhone: string;
+}
 
 const addStockSchema = z.object({
   item: z.string().min(1, { message: "Item name is required" }),
@@ -79,8 +101,7 @@ const addStockSchema = z.object({
 
 function AddStockForm({ setOpen }: { setOpen: (open: boolean) => void }) {
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
+  
   const form = useForm<z.infer<typeof addStockSchema>>({
     resolver: zodResolver(addStockSchema),
     defaultValues: {
@@ -95,24 +116,32 @@ function AddStockForm({ setOpen }: { setOpen: (open: boolean) => void }) {
   });
 
   const watchedItem = form.watch("item");
+  const { formState: { isSubmitting } } = form;
 
-  const onSubmit = (values: z.infer<typeof addStockSchema>) => {
-    setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
-      const finalValues = {
-        ...values,
-        item: values.item === 'Custom' ? values.customItem : values.item,
-      };
-      delete finalValues.customItem;
-      console.log(finalValues);
-      toast({
-        title: "Success!",
-        description: `Successfully added ${finalValues.quantity} of ${finalValues.item} to stock.`,
-      });
-      setIsSubmitting(false);
-      setOpen(false);
-    }, 1000);
+  const onSubmit = async (values: z.infer<typeof addStockSchema>) => {
+    try {
+        const finalValues = {
+          ...values,
+          item: values.item === 'Custom' ? values.customItem : values.item,
+        };
+        delete (finalValues as Partial<typeof finalValues>).customItem;
+        
+        await addDoc(collection(db, "readyMadeStock"), finalValues);
+
+        toast({
+            title: "Success!",
+            description: `Successfully added ${finalValues.quantity} of ${finalValues.item} to stock.`,
+        });
+        setOpen(false);
+        form.reset();
+    } catch (error) {
+        console.error("Error adding stock: ", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "There was a problem adding the stock item.",
+        });
+    }
   };
 
   return (
@@ -245,13 +274,44 @@ function AddStockForm({ setOpen }: { setOpen: (open: boolean) => void }) {
 }
 
 export default function ReadyMadeStockPage() {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [readyMadeStock, setReadyMadeStock] = useState<ReadyMadeStockItem[]>([]);
+  const [currentItem, setCurrentItem] = useState<ReadyMadeStockItem | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "readyMadeStock"), (snapshot) => {
+        const stockData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ReadyMadeStockItem));
+        setReadyMadeStock(stockData);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
     }).format(amount);
   };
+
+  const handleDelete = async () => {
+    if (!currentItem) return;
+    try {
+        await deleteDoc(doc(db, "readyMadeStock", currentItem.id));
+        toast({
+            variant: "destructive",
+            title: "Item Deleted",
+            description: `${currentItem.item} has been removed from your inventory.`
+        });
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not delete item."
+        })
+    }
+  }
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -305,23 +365,41 @@ export default function ReadyMadeStockPage() {
                   <TableCell>{formatCurrency(item.cost)}</TableCell>
                   <TableCell>{item.supplier}</TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <AlertDialog>
+                        <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                            <DropdownMenuItem>View Details</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <AlertDialogTrigger asChild>
+                                <DropdownMenuItem className="text-destructive" onSelect={() => setCurrentItem(item)}>
+                                Delete
+                                </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                        </DropdownMenuContent>
+                        </DropdownMenu>
+                         <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the item.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Back</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDelete}>
+                                Yes, Delete Item
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}

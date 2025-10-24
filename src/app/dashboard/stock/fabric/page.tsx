@@ -26,7 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { fabricStock } from "@/lib/data";
 import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -37,6 +36,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -50,7 +60,18 @@ import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, onSnapshot, doc, deleteDoc, DocumentData } from "firebase/firestore";
+
+export interface FabricStockItem {
+    id: string;
+    type: string;
+    length: number;
+    costPerMtr: number;
+    supplier: string;
+    supplierPhone: string;
+}
 
 const addFabricSchema = z.object({
   type: z.string().min(1, { message: "Fabric type is required" }),
@@ -62,8 +83,7 @@ const addFabricSchema = z.object({
 
 function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
+  
   const form = useForm<z.infer<typeof addFabricSchema>>({
     resolver: zodResolver(addFabricSchema),
     defaultValues: {
@@ -75,18 +95,25 @@ function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof addFabricSchema>) => {
-    setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
-      console.log(values);
-      toast({
-        title: "Success!",
-        description: `Successfully added ${values.length} meters of ${values.type} to stock.`,
-      });
-      setIsSubmitting(false);
-      setOpen(false);
-    }, 1000);
+  const { formState: { isSubmitting } } = form;
+
+  const onSubmit = async (values: z.infer<typeof addFabricSchema>) => {
+    try {
+        await addDoc(collection(db, "fabricStock"), values);
+        toast({
+            title: "Success!",
+            description: `Successfully added ${values.length} meters of ${values.type} to stock.`,
+        });
+        setOpen(false);
+        form.reset();
+    } catch (error) {
+        console.error("Error adding fabric: ", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "There was a problem adding the fabric.",
+        });
+    }
   };
 
   return (
@@ -181,13 +208,43 @@ function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
 
 
 export default function FabricStockPage() {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
+  const [currentItem, setCurrentItem] = useState<FabricStockItem | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "fabricStock"), (snapshot) => {
+        const stockData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FabricStockItem));
+        setFabricStock(stockData);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
     }).format(amount);
   };
+
+   const handleDelete = async () => {
+    if (!currentItem) return;
+    try {
+        await deleteDoc(doc(db, "fabricStock", currentItem.id));
+        toast({
+            variant: "destructive",
+            title: "Fabric Deleted",
+            description: `${currentItem.type} has been removed from your inventory.`
+        });
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not delete fabric."
+        })
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -237,23 +294,41 @@ export default function FabricStockPage() {
                   <TableCell>{formatCurrency(item.costPerMtr)}</TableCell>
                   <TableCell>{item.supplier}</TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <AlertDialog>
+                        <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                            <DropdownMenuItem>View Details</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <AlertDialogTrigger asChild>
+                                <DropdownMenuItem className="text-destructive" onSelect={() => setCurrentItem(item)}>
+                                Delete
+                                </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                        </DropdownMenuContent>
+                        </DropdownMenu>
+                         <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the fabric.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Back</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDelete}>
+                                Yes, Delete Fabric
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}
