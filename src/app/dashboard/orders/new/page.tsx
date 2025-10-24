@@ -343,6 +343,11 @@ export default function NewOrderPage() {
     
     const onSubmit = async (values: OrderFormValues) => {
       runTransaction(db, async (transaction) => {
+        // --- 1. READS ---
+        const counterRef = doc(db, "counters", "orders");
+        const counterDoc = await transaction.get(counterRef);
+        
+        // --- 2. WRITES ---
         let finalCustomerId = values.customerId;
         let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
 
@@ -361,9 +366,6 @@ export default function NewOrderPage() {
         if (!finalCustomerId) {
           throw new Error("Customer not selected or created.");
         }
-
-        const counterRef = doc(db, "counters", "orders");
-        const counterDoc = await transaction.get(counterRef);
         
         let newOrderNumber = 1001;
         if (counterDoc.exists()) {
@@ -428,15 +430,11 @@ export default function NewOrderPage() {
         });
       }).catch((error: any) => {
         console.error("Transaction failed: ", error);
-        if (error.message.includes("Customer")) {
-          toast({ variant: 'destructive', title: "Error", description: error.message });
-        } else {
-           errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: 'orders', 
-            operation: 'create',
-            requestResourceData: values,
-          }));
-        }
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'orders', 
+          operation: 'create',
+          requestResourceData: values,
+        }));
       });
   }
 
@@ -478,8 +476,8 @@ export default function NewOrderPage() {
                                 )}/>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                                    <FormField control={form.control} name="newCustomerName" render={({ field }) => (<FormItem><FormLabel>New Customer Name</FormLabel><FormControl><Input placeholder="Full name" {...field} /></FormControl><FormMessage/></FormItem>)} />
-                                    <FormField control={form.control} name="newCustomerPhone" render={({ field }) => (<FormItem><FormLabel>New Customer Phone</FormLabel><FormControl><Input placeholder="Phone number" {...field} /></FormControl><FormMessage/></FormItem>)} />
+                                    <FormField control={form.control} name="newCustomerName" render={({ field }) => (<FormItem><FormLabel>New Customer Name</FormLabel><FormControl><Input placeholder="Full name" {...field} value={field.value ?? ''} /></FormControl><FormMessage/></FormItem>)} />
+                                    <FormField control={form.control} name="newCustomerPhone" render={({ field }) => (<FormItem><FormLabel>New Customer Phone</FormLabel><FormControl><Input placeholder="Phone number" {...field} value={field.value ?? ''} /></FormControl><FormMessage/></FormItem>)} />
                                 </div>
                             )}
                              <FormField control={form.control} name="deliveryDate" render={({ field }) => (
