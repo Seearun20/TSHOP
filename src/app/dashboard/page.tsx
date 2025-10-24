@@ -93,12 +93,10 @@ export default function DashboardPage() {
   const financialSummary = useMemo(() => {
     const totalSales = orders.reduce((sum, order) => sum + order.subtotal, 0);
     
-    const readyMadePurchases = readyMadeStock.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-    const fabricPurchases = fabricStock.reduce((sum, item) => sum + (item.costPerMtr * item.length), 0);
-    const totalPurchases = readyMadePurchases + fabricPurchases;
+    const readyMadeValue = readyMadeStock.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+    const fabricValue = fabricStock.reduce((sum, item) => sum + (item.costPerMtr * item.length), 0);
+    const inventoryValue = readyMadeValue + fabricValue;
     
-    const totalProfit = totalSales - totalPurchases;
-
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     const newOrders = orders.filter(order => {
@@ -109,7 +107,7 @@ export default function DashboardPage() {
       return false;
     }).length;
 
-    return { totalSales, totalPurchases, totalProfit, newOrders };
+    return { totalSales, inventoryValue, newOrders };
   }, [orders, readyMadeStock, fabricStock]);
 
 

@@ -5,13 +5,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DollarSign, ShoppingBag, TrendingUp, UserPlus } from "lucide-react";
+import { Archive, DollarSign, ShoppingBag, UserPlus } from "lucide-react";
 
 interface FinancialCardsProps {
   summary: {
     totalSales: number;
-    totalPurchases: number;
-    totalProfit: number;
+    inventoryValue: number;
     newOrders: number;
   };
 }
@@ -41,25 +40,14 @@ export function FinancialCards({ summary }: FinancialCardsProps) {
       </Card>
       <Card className="shadow-lg">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Purchases</CardTitle>
-          <ShoppingBag className="h-4 w-4 text-muted-foreground text-accent" />
+          <CardTitle className="text-sm font-medium">Inventory Value</CardTitle>
+          <Archive className="h-4 w-4 text-muted-foreground text-accent" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {formatCurrency(summary.totalPurchases)}
+            {formatCurrency(summary.inventoryValue)}
           </div>
-          <p className="text-xs text-muted-foreground">All-time inventory cost</p>
-        </CardContent>
-      </Card>
-      <Card className="shadow-lg">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {formatCurrency(summary.totalProfit)}
-          </div>
-          <p className="text-xs text-muted-foreground">Gross profit (Sales - Purchases)</p>
+          <p className="text-xs text-muted-foreground">Total cost of stock</p>
         </CardContent>
       </Card>
       <Card className="shadow-lg">
