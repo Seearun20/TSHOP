@@ -256,6 +256,11 @@ export default function OrdersPage() {
 
   const handleActionClick = (order: Order, dialog: keyof typeof dialogs) => {
     setCurrentOrder(order);
+    if (dialog === 'invoice') {
+        const url = `/print/invoice/${order.id}`;
+        window.open(url, '_blank');
+        return;
+    }
     setDialogs(prev => ({ ...prev, [dialog]: true }));
   };
   
