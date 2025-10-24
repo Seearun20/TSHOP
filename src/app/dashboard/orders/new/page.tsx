@@ -338,104 +338,102 @@ export default function NewOrderPage() {
     }
     
     const onSubmit = async (values: OrderFormValues) => {
-        let finalCustomerId = values.customerId;
-        let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
-    
-        try {
-          const newOrderId = await runTransaction(db, async (transaction) => {
-            let newCustomerDocRef: any;
-            if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
-              newCustomerDocRef = doc(collection(db, "customers"));
-              transaction.set(newCustomerDocRef, {
-                name: values.newCustomerName,
-                phone: values.newCustomerPhone,
-                email: '',
-                measurements: {}
-              });
-              finalCustomerId = newCustomerDocRef.id;
-              finalCustomerName = values.newCustomerName;
-            }
-    
-            if (!finalCustomerId) {
-              throw new Error("Customer not selected or created.");
-            }
-    
-            const counterRef = doc(db, "counters", "orders");
-            const counterDoc = await transaction.get(counterRef);
-            
-            let newOrderNumber = 1001;
-            if (counterDoc.exists()) {
-              newOrderNumber = counterDoc.data().lastOrderNumber + 1;
-            }
-            transaction.set(counterRef, { lastOrderNumber: newOrderNumber }, { merge: true });
-    
-            values.items.forEach(item => {
-              if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
-                const stockRef = doc(db, item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock', item.details.stockId);
-                const stockItem = (item.type === 'readymade' ? readyMadeStock : fabricStock).find(s => s.id === item.details.stockId);
-                if (stockItem) {
-                  const currentStock = item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length;
-                  const newQuantity = currentStock - item.quantity;
-                  transaction.update(stockRef, { [item.type === 'readymade' ? 'quantity' : 'length']: newQuantity });
-                }
-              }
+      try {
+        const savedOrder = await runTransaction(db, async (transaction) => {
+          let finalCustomerId = values.customerId;
+          let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
+  
+          if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
+            const newCustomerRef = doc(collection(db, "customers"));
+            transaction.set(newCustomerRef, {
+              name: values.newCustomerName,
+              phone: values.newCustomerPhone,
+              email: '',
+              measurements: {}
             });
-    
-            const orderDocRef = doc(collection(db, "orders"));
-            const newOrderData = {
-              orderNumber: newOrderNumber,
-              customerId: finalCustomerId,
-              deliveryDate: values.deliveryDate || null,
-              items: values.items,
-              subtotal: subtotal,
-              advance: advance,
-              balance: balance,
-              status: "In Progress",
-              createdAt: new Date(),
-            };
-            transaction.set(orderDocRef, newOrderData);
-            
-            const savedOrder = {
-              id: orderDocRef.id,
-              customerName: finalCustomerName,
-              ...newOrderData,
-            } as Order;
-
-            setLastCreatedOrder(savedOrder);
-            return savedOrder;
-          });
-
-          toast({
-            title: "Order Created Successfully!",
-            description: `Order #${newOrderId.orderNumber} has been saved.`,
-          });
-          
-          window.open(`/print/invoice/${newOrderId.id}`, '_blank');
-          
-          const hasStitchingItem = newOrderId.items.some((item: OrderItem) => item.type === 'stitching');
-          if (hasStitchingItem) {
-            setShowMeasurementSlipDialog(true);
+            finalCustomerId = newCustomerRef.id;
+            finalCustomerName = values.newCustomerName;
           }
-
-          form.reset({
-            customerType: 'existing',
-            customerId: '',
-            newCustomerName: '',
-            newCustomerPhone: '',
-            deliveryDate: undefined,
-            items: [],
-            advance: 0,
-          });
-    
-        } catch (error: any) {
-          console.error("Transaction failed: ", error);
-          if (error.message.includes("Customer")) {
-            toast({ variant: 'destructive', title: "Error", description: error.message });
-          } else {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'orders', operation: 'create'}));
+  
+          if (!finalCustomerId) {
+            throw new Error("Customer not selected or created.");
           }
+  
+          const counterRef = doc(db, "counters", "orders");
+          const counterDoc = await transaction.get(counterRef);
+          
+          let newOrderNumber = 1001;
+          if (counterDoc.exists()) {
+            newOrderNumber = counterDoc.data().lastOrderNumber + 1;
+          }
+          transaction.set(counterRef, { lastOrderNumber: newOrderNumber }, { merge: true });
+  
+          values.items.forEach(item => {
+            if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
+              const stockRef = doc(db, item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock', item.details.stockId);
+              const stockItem = (item.type === 'readymade' ? readyMadeStock : fabricStock).find(s => s.id === item.details.stockId);
+              if (stockItem) {
+                const currentStock = item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length;
+                const newQuantity = currentStock - item.quantity;
+                transaction.update(stockRef, { [item.type === 'readymade' ? 'quantity' : 'length']: newQuantity });
+              }
+            }
+          });
+  
+          const orderDocRef = doc(collection(db, "orders"));
+          const newOrderData = {
+            orderNumber: newOrderNumber,
+            customerId: finalCustomerId,
+            deliveryDate: values.deliveryDate || null,
+            items: values.items,
+            subtotal: subtotal,
+            advance: advance,
+            balance: balance,
+            status: "In Progress",
+            createdAt: new Date(),
+          };
+          transaction.set(orderDocRef, newOrderData);
+          
+          return {
+            id: orderDocRef.id,
+            customerName: finalCustomerName,
+            ...newOrderData,
+          } as Order;
+        });
+
+        setLastCreatedOrder(savedOrder);
+
+        toast({
+          title: "Order Created Successfully!",
+          description: `Order #${savedOrder.orderNumber} has been saved.`,
+        });
+        
+        window.open(`/print/invoice/${savedOrder.id}`, '_blank');
+        
+        const hasStitchingItem = savedOrder.items.some((item: OrderItem) => item.type === 'stitching');
+        if (hasStitchingItem) {
+          setShowMeasurementSlipDialog(true);
         }
-    }
+
+        form.reset({
+          customerType: 'existing',
+          customerId: '',
+          newCustomerName: '',
+          newCustomerPhone: '',
+          deliveryDate: undefined,
+          items: [],
+          advance: 0,
+        });
+  
+      } catch (error: any) {
+        console.error("Transaction failed: ", error);
+        if (error.message.includes("Customer")) {
+          toast({ variant: 'destructive', title: "Error", description: error.message });
+        } else {
+           errorEmitter.emit('permission-error', new FirestorePermissionError({path: 'orders', operation: 'create'}));
+        }
+      }
+  }
 
     const formatCurrency = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
 
@@ -615,5 +613,3 @@ export default function NewOrderPage() {
     </Form>
     );
 }
-
-    
