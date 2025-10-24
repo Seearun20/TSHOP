@@ -6,7 +6,7 @@ export function AppLogo(props: Partial<ComponentProps<typeof Image>>) {
   const { className, ...rest } = props;
   return (
     <Image
-      src="https://picsum.photos/seed/logo/100/100"
+      src="/LOGO.png"
       alt="Raghav Tailors Logo"
       width={100}
       height={100}
