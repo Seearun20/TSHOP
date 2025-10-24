@@ -32,7 +32,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Customer } from "@/app/dashboard/customers/page";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, addDoc, updateDoc, runTransaction } from "firebase/firestore";
+import { collection, onSnapshot, doc, addDoc, updateDoc, runTransaction, getDoc } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Input } from "@/components/ui/input";
@@ -158,12 +158,16 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
     const measurementFields = apparel ? Object.keys(apparelMeasurements[apparel]?.shape || {}) : [];
     const { toast } = useToast();
 
+    const getApparelKey = (apparelName: string) => {
+      return apparelName.toLowerCase().replace(/ /g, '').replace('+', '');
+    }
+
     const handleFetchMeasurements = () => {
         if (!customerId || !apparel) return;
         const customer = customers.find(c => c.id === customerId);
         if (!customer) return;
 
-        const apparelKey = apparel.replace(/ /g, '_');
+        const apparelKey = getApparelKey(apparel);
         const existingMeasurements = customer.measurements?.[apparelKey];
 
         if (existingMeasurements && typeof existingMeasurements === 'object') {
@@ -189,12 +193,21 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
         }
 
         // Save measurements to customer if a customer is selected
-        if (customerId && Object.keys(measurements).length > 0) {
+        if (customerId && Object.values(measurements).some(v => v)) {
             const customerDoc = doc(db, "customers", customerId);
-            const apparelKey = apparel.replace(/ /g, '_');
-            await updateDoc(customerDoc, { 
-                [`measurements.${apparelKey}`]: measurements 
-            }, { merge: true });
+            const apparelKey = getApparelKey(apparel);
+            
+            const updatePayload: { [key: string]: any } = {};
+            updatePayload[`measurements.${apparelKey}`] = measurements;
+            
+            updateDoc(customerDoc, updatePayload, { merge: true }).catch(error => {
+               console.error("Failed to save measurements:", error);
+               toast({
+                   variant: "destructive",
+                   title: "Save Failed",
+                   description: "Could not save measurements to customer profile."
+               })
+            });
         }
 
         onAddItem({
@@ -378,11 +391,11 @@ export default function NewOrderPage() {
         // --- 1. READS ---
         const counterRef = doc(db, "counters", "orders");
         const counterDoc = await transaction.get(counterRef);
-        
-        // --- 2. WRITES ---
+
         let finalCustomerId = values.customerId;
         let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
-
+        
+        // --- 2. WRITES (but conditional on read) ---
         if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
           const newCustomerRef = doc(collection(db, "customers"));
           transaction.set(newCustomerRef, {
@@ -407,12 +420,14 @@ export default function NewOrderPage() {
 
         values.items.forEach(item => {
           if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
-            const stockRef = doc(db, item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock', item.details.stockId);
+            const stockCollectionName = item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock';
+            const stockRef = doc(db, stockCollectionName, item.details.stockId);
             const stockItem = (item.type === 'readymade' ? readyMadeStock : fabricStock).find(s => s.id === item.details.stockId);
             if (stockItem) {
               const currentStock = item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length;
               const newQuantity = currentStock - item.quantity;
-              transaction.update(stockRef, { [item.type === 'readymade' ? 'quantity' : 'length']: newQuantity });
+              const fieldToUpdate = item.type === 'readymade' ? 'quantity' : 'length';
+              transaction.update(stockRef, { [fieldToUpdate]: newQuantity });
             }
           }
         });
@@ -647,5 +662,7 @@ export default function NewOrderPage() {
         </form>
     </Form>
     );
+
+    
 
     
