@@ -74,6 +74,11 @@ export interface Leave {
     description: string;
 }
 
+export interface Payment {
+    date: string;
+    amount: number;
+}
+
 export interface Employee {
     id: string;
     name: string;
@@ -83,6 +88,7 @@ export interface Employee {
     leaves: Leave[];
     paycheckDay: number;
     lastSalaryUpdate: Timestamp;
+    payments: Payment[];
 }
 
 const employeeSchema = z.object({
@@ -93,6 +99,13 @@ const employeeSchema = z.object({
 });
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
+
+const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+    }).format(amount);
+};
 
 
 function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void; employee?: Employee | null }) {
@@ -128,8 +141,9 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
             } else {
                 const newEmployee = { 
                     ...values, 
-                    balance: 0, 
+                    balance: values.salary, // Initial balance is the salary
                     leaves: [],
+                    payments: [],
                     lastSalaryUpdate: Timestamp.now(),
                 };
                 await addDoc(collection(db, "employees"), newEmployee);
@@ -297,16 +311,103 @@ function ManageLeavesDialog({ employee, setOpen }: { employee: Employee; setOpen
     );
 }
 
-export default function EmployeesPage() {
+function MakePaymentDialog({ employee, setOpen }: { employee: Employee; setOpen: (open: boolean) => void; }) {
     const { toast } = useToast();
+    const [amount, setAmount] = useState<number | ''>('');
+
+    const handlePayment = async () => {
+        if (!amount || amount <= 0) {
+            toast({ variant: 'destructive', title: "Invalid Amount", description: "Please enter a valid payment amount." });
+            return;
+        }
+        if (amount > employee.balance) {
+            toast({ variant: 'destructive', title: "Amount Exceeds Balance", description: `Payment cannot be more than the due amount of ${formatCurrency(employee.balance)}.` });
+            return;
+        }
+
+        const employeeDoc = doc(db, "employees", employee.id);
+        const newPayment: Payment = {
+            date: new Date().toISOString(),
+            amount: Number(amount)
+        };
+        const newBalance = employee.balance - Number(amount);
+
+        try {
+            await updateDoc(employeeDoc, {
+                balance: newBalance,
+                payments: arrayUnion(newPayment)
+            });
+            toast({
+                title: "Payment Recorded!",
+                description: `${formatCurrency(Number(amount))} paid to ${employee.name}. New balance: ${formatCurrency(newBalance)}.`,
+            });
+            setOpen(false);
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: employeeDoc.path, operation: 'update' }));
+        }
+    };
+
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Make Payment to {employee.name}</DialogTitle>
+                <DialogDescription>
+                    Current balance due: <span className="font-medium text-destructive">{formatCurrency(employee.balance)}</span>
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="payment-amount">Payment Amount</Label>
+                    <Input id="payment-amount" type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} placeholder="Enter amount to pay" />
+                </div>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                <Button onClick={handlePayment} disabled={!amount || amount <= 0}>Confirm Payment</Button>
+            </DialogFooter>
+        </DialogContent>
+    );
+}
+
+function ViewPaymentsDialog({ employee, setOpen }: { employee: Employee; setOpen: (open: boolean) => void; }) {
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Payment History</DialogTitle>
+                <DialogDescription>Showing all payments made to {employee.name}.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 max-h-60 overflow-y-auto py-4">
+                {employee.payments && employee.payments.length > 0 ? (
+                    [...employee.payments].reverse().map((payment, index) => (
+                        <div key={index} className="flex justify-between items-center p-2 border rounded-md">
+                            <div>
+                                <p className="text-sm font-medium">{formatCurrency(payment.amount)}</p>
+                                <p className="text-xs text-muted-foreground">{new Date(payment.date).toLocaleString()}</p>
+                            </div>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">No payments recorded.</p>
+                )}
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+            </DialogFooter>
+        </DialogContent>
+    );
+}
+
+
+export default function EmployeesPage() {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
     const [dialogs, setDialogs] = useState({
         add: false,
         edit: false,
         delete: false,
-        pay: false,
+        payment: false,
         leaves: false,
+        history: false,
     });
     
     const updateSalaryBalances = useCallback(async (employeesData: Employee[]) => {
@@ -361,34 +462,12 @@ export default function EmployeesPage() {
         setDialogs(prev => ({ ...prev, [dialog]: true }));
     };
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat("en-IN", {
-            style: "currency",
-            currency: "INR",
-        }).format(amount);
-    };
-    
-    const handlePaySalary = async () => {
-        if(!currentEmployee) return;
-        const employeeDoc = doc(db, "employees", currentEmployee.id);
-        try {
-            await updateDoc(employeeDoc, { balance: 0 });
-            toast({
-                title: "Salary Paid!",
-                description: `Salary paid to ${currentEmployee.name}. Balance is now zero.`,
-            });
-            setDialogs(p => ({...p, pay: false}));
-        } catch (error) {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({path: employeeDoc.path, operation: 'update'}));
-        }
-    }
-
     const handleRemoveEmployee = async () => {
         if (!currentEmployee) return;
         const employeeDoc = doc(db, "employees", currentEmployee.id);
         try {
             await deleteDoc(employeeDoc);
-            toast({
+            useToast().toast({
                 variant: "destructive",
                 title: "Employee Removed",
                 description: `${currentEmployee.name} has been removed from your records.`
@@ -460,10 +539,11 @@ export default function EmployeesPage() {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'edit')}>Edit Details</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'pay')}>Pay Salary</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'payment')}>Make Payment</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'history')}>View Payments</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => handleActionClick(employee, 'leaves')}>Manage Leaves</DropdownMenuItem>
                                                 <DropdownMenuSeparator />
+                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'edit')}>Edit Details</DropdownMenuItem>
                                                 <DropdownMenuItem className="text-destructive" onSelect={() => handleActionClick(employee, 'delete')}>
                                                     Remove Employee
                                                 </DropdownMenuItem>
@@ -489,25 +569,16 @@ export default function EmployeesPage() {
                         </DialogContent>
                     </Dialog>
                     
-                    <Dialog open={dialogs.pay} onOpenChange={(open) => setDialogs(p => ({ ...p, pay: open }))}>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Pay Salary</DialogTitle>
-                                <DialogDescription>Pay outstanding balance for {currentEmployee.name}.</DialogDescription>
-                            </DialogHeader>
-                            <div className="py-4">
-                                <p>Outstanding balance for <span className="font-medium">{currentEmployee.name}</span> is <span className="font-mono text-destructive">{formatCurrency(currentEmployee.balance)}</span>.</p>
-                                <p className="text-sm text-muted-foreground mt-2">Paying this will reset the balance to zero.</p>
-                            </div>
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setDialogs(p => ({ ...p, pay: false }))}>Cancel</Button>
-                                <Button onClick={handlePaySalary}>Confirm Payment</Button>
-                            </DialogFooter>
-                        </DialogContent>
+                    <Dialog open={dialogs.payment} onOpenChange={(open) => setDialogs(p => ({ ...p, payment: open }))}>
+                       <MakePaymentDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, payment: open}))} />
                     </Dialog>
 
-                    <Dialog open={dialogs.leaves} onOpenChange={(open) => setDialogs(p => ({...p, leaves: false}))}>
-                        <ManageLeavesDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, leaves: false}))}/>
+                     <Dialog open={dialogs.history} onOpenChange={(open) => setDialogs(p => ({...p, history: open}))}>
+                       <ViewPaymentsDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, history: open}))} />
+                    </Dialog>
+
+                    <Dialog open={dialogs.leaves} onOpenChange={(open) => setDialogs(p => ({...p, leaves: open}))}>
+                        <ManageLeavesDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, leaves: open}))}/>
                     </Dialog>
 
                     <AlertDialog open={dialogs.delete} onOpenChange={(open) => setDialogs(p => ({ ...p, delete: open }))}>
@@ -532,6 +603,7 @@ export default function EmployeesPage() {
         </div>
     );
 }
+
     
 
     
