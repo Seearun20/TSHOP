@@ -101,23 +101,22 @@ function AddFabricForm({ setOpen }: { setOpen: (open: boolean) => void }) {
 
   const onSubmit = async (values: z.infer<typeof addFabricSchema>) => {
     const fabricStockCollection = collection(db, "fabricStock");
-    addDoc(fabricStockCollection, values)
-        .then(() => {
-            toast({
-                title: "Success!",
-                description: `Successfully added ${values.length} meters of ${values.type} to stock.`,
-            });
-            setOpen(false);
-            form.reset();
-        })
-        .catch(async (error) => {
-            const permissionError = new FirestorePermissionError({
-                path: fabricStockCollection.path,
-                operation: "create",
-                requestResourceData: values,
-            });
-            errorEmitter.emit("permission-error", permissionError);
+    try {
+        await addDoc(fabricStockCollection, values);
+        toast({
+            title: "Success!",
+            description: `Successfully added ${values.length} meters of ${values.type} to stock.`,
         });
+        setOpen(false);
+        form.reset();
+    } catch (error) {
+        const permissionError = new FirestorePermissionError({
+            path: fabricStockCollection.path,
+            operation: "create",
+            requestResourceData: values,
+        });
+        errorEmitter.emit("permission-error", permissionError);
+    }
   };
 
   return (
@@ -353,3 +352,5 @@ export default function FabricStockPage() {
     </div>
   );
 }
+
+    

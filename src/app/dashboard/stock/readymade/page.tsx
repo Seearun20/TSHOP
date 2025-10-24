@@ -128,23 +128,22 @@ function AddStockForm({ setOpen }: { setOpen: (open: boolean) => void }) {
     delete (finalValues as Partial<typeof finalValues>).customItem;
     
     const readyMadeStockCollection = collection(db, "readyMadeStock");
-    addDoc(readyMadeStockCollection, finalValues)
-      .then(() => {
-        toast({
-            title: "Success!",
-            description: `Successfully added ${finalValues.quantity} of ${finalValues.item} to stock.`,
-        });
-        setOpen(false);
-        form.reset();
-      })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: readyMadeStockCollection.path,
-          operation: "create",
-          requestResourceData: finalValues,
-        });
-        errorEmitter.emit("permission-error", permissionError);
+    try {
+      await addDoc(readyMadeStockCollection, finalValues);
+      toast({
+          title: "Success!",
+          description: `Successfully added ${finalValues.quantity} of ${finalValues.item} to stock.`,
       });
+      setOpen(false);
+      form.reset();
+    } catch (error) {
+      const permissionError = new FirestorePermissionError({
+        path: readyMadeStockCollection.path,
+        operation: "create",
+        requestResourceData: finalValues,
+      });
+      errorEmitter.emit("permission-error", permissionError);
+    }
   };
 
   return (
@@ -423,3 +422,5 @@ export default function ReadyMadeStockPage() {
     </div>
   );
 }
+
+    
