@@ -47,7 +47,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -63,10 +63,11 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, Timestamp } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export interface Leave {
     date: string;
@@ -80,12 +81,15 @@ export interface Employee {
     salary: number;
     balance: number;
     leaves: Leave[];
+    paycheckDay: number;
+    lastSalaryUpdate: Timestamp;
 }
 
 const employeeSchema = z.object({
     name: z.string().min(1, "Employee name is required"),
     role: z.string().min(1, "Role is required"),
     salary: z.coerce.number().min(1, "Salary must be greater than 0"),
+    paycheckDay: z.coerce.number().min(1).max(28, "Paycheck day must be between 1 and 28"),
 });
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
@@ -101,10 +105,12 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
             name: employee.name,
             role: employee.role,
             salary: employee.salary,
+            paycheckDay: employee.paycheckDay,
         } : {
             name: "",
             role: "",
             salary: 0,
+            paycheckDay: 1,
         },
     });
 
@@ -120,7 +126,12 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
                     description: `Successfully updated ${values.name}.`,
                 });
             } else {
-                const newEmployee = { ...values, balance: 0, leaves: [] };
+                const newEmployee = { 
+                    ...values, 
+                    balance: 0, 
+                    leaves: [],
+                    lastSalaryUpdate: Timestamp.now(),
+                };
                 await addDoc(collection(db, "employees"), newEmployee);
                 toast({
                     title: "Employee Added!",
@@ -178,6 +189,28 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
                         )}
                     />
                 </div>
+                 <FormField
+                    control={form.control}
+                    name="paycheckDay"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Paycheck Day of Month</FormLabel>
+                            <Select onValueChange={(val) => field.onChange(Number(val))} defaultValue={String(field.value)}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a day" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                                        <SelectItem key={day} value={String(day)}>{day}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                             <FormMessage />
+                        </FormItem>
+                    )}
+                />
                 <DialogFooter>
                     <Button type="submit" disabled={isSubmitting}>
                         {isSubmitting ? <Loader2 className="animate-spin" /> : (isEditMode ? "Save Changes" : "Add Employee")}
@@ -276,10 +309,44 @@ export default function EmployeesPage() {
         leaves: false,
     });
     
+    const updateSalaryBalances = useCallback(async (employeesData: Employee[]) => {
+        const today = new Date();
+        const currentDay = today.getDate();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
+        
+        for (const employee of employeesData) {
+            if (!employee.lastSalaryUpdate || !employee.paycheckDay) continue;
+
+            const lastUpdateDate = employee.lastSalaryUpdate.toDate();
+            const lastUpdateMonth = lastUpdateDate.getMonth();
+            const lastUpdateYear = lastUpdateDate.getFullYear();
+
+            const isPaycheckDayPassed = currentDay >= employee.paycheckDay;
+            const isNewMonth = currentYear > lastUpdateYear || (currentYear === lastUpdateYear && currentMonth > lastUpdateMonth);
+
+            if (isPaycheckDayPassed && isNewMonth) {
+                const employeeDoc = doc(db, "employees", employee.id);
+                const newBalance = (employee.balance || 0) + employee.salary;
+                try {
+                    await updateDoc(employeeDoc, {
+                        balance: newBalance,
+                        lastSalaryUpdate: Timestamp.now()
+                    });
+                    console.log(`Updated balance for ${employee.name}`);
+                } catch (error) {
+                    console.error(`Failed to update balance for ${employee.name}:`, error);
+                    // Optionally emit a specific, non-blocking error here
+                }
+            }
+        }
+    }, []);
+
     useEffect(() => {
         const employeesCollection = collection(db, "employees");
         const unsubscribe = onSnapshot(employeesCollection, (snapshot) => {
             const employeesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            updateSalaryBalances(employeesData);
             setEmployees(employeesData);
         },
         (error) => {
@@ -287,7 +354,7 @@ export default function EmployeesPage() {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [updateSalaryBalances]);
 
     const handleActionClick = (employee: Employee, dialog: keyof typeof dialogs) => {
         setCurrentEmployee(employee);
@@ -465,4 +532,6 @@ export default function EmployeesPage() {
         </div>
     );
 }
+    
+
     
