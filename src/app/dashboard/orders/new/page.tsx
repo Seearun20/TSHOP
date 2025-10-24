@@ -160,7 +160,7 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
 
     const getApparelKey = (apparelName: string) => {
       if (!apparelName) return '';
-      return apparelName.toLowerCase().replace(/\s/g, '').replace(/\+/g, '');
+      return apparelName.toLowerCase().replace(/[\s+]/g, '');
     }
 
     const handleFetchMeasurements = () => {
@@ -169,7 +169,7 @@ function StitchingServiceDialog({ onAddItem, customerId, customers }: { onAddIte
         if (!customer) return;
 
         const apparelKey = getApparelKey(apparel);
-        const existingMeasurements = customer.measurements?.[apparelKey];
+        const existingMeasurements = (customer.measurements as any)?.[apparelKey];
 
         if (existingMeasurements && typeof existingMeasurements === 'object') {
             setMeasurements(existingMeasurements);
@@ -441,7 +441,7 @@ export default function NewOrderPage() {
         };
         transaction.set(orderDocRef, newOrderData);
 
-        transaction.set(counterRef, { lastOrderNumber: newOrderNumber }, { merge: true });
+        transaction.update(counterRef, { lastOrderNumber: newOrderNumber });
 
         values.items.forEach(item => {
           if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
@@ -674,6 +674,8 @@ export default function NewOrderPage() {
         </form>
     </Form>
     );
+
+    
 
     
 
