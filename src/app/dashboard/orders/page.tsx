@@ -48,7 +48,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -197,7 +197,7 @@ function ReceivePaymentDialog({ order, setOpen }: { order: Order, setOpen: (open
   );
 }
 
-export default function OrdersPage() {
+function OrdersPageClient() {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -480,4 +480,11 @@ export default function OrdersPage() {
   );
 }
 
-    
+
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={<div>Loading orders...</div>}>
+      <OrdersPageClient />
+    </Suspense>
+  );
+}
