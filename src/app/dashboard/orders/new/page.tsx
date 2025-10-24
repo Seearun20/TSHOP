@@ -410,9 +410,11 @@ export default function NewOrderPage() {
         let finalCustomerId = values.customerId;
         let finalCustomerName = customers.find(c => c.id === values.customerId)?.name;
         
-        // --- 2. WRITES ---
-        if (values.customerType === 'new' && values.newCustomerName && values.newCustomerPhone) {
-          const newCustomerRef = doc(collection(db, "customers"));
+        // --- 2. WRITES (will be staged) ---
+        
+        const newCustomerRef = values.customerType === 'new' ? doc(collection(db, "customers")) : null;
+
+        if (newCustomerRef && values.newCustomerName && values.newCustomerPhone) {
           transaction.set(newCustomerRef, {
             name: values.newCustomerName,
             phone: values.newCustomerPhone,
@@ -447,7 +449,6 @@ export default function NewOrderPage() {
           if ((item.type === 'readymade' || item.type === 'fabric') && item.details.stockId) {
             const stockCollectionName = item.type === 'readymade' ? 'readyMadeStock' : 'fabricStock';
             const stockRef = doc(db, stockCollectionName, item.details.stockId);
-            // This read is safe because it's based on data from the client, not a previous read in the transaction.
             const stockItem = (item.type === 'readymade' ? readyMadeStock : fabricStock).find(s => s.id === item.details.stockId);
             if (stockItem) {
               const currentStock = item.type === 'readymade' ? (stockItem as ReadyMadeStockItem).quantity : (stockItem as FabricStockItem).length;
@@ -674,6 +675,8 @@ export default function NewOrderPage() {
         </form>
     </Form>
     );
+
+    
 
     
 
