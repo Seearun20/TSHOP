@@ -154,12 +154,13 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
     const [open, setOpen] = useState(false);
     const [apparel, setApparel] = useState('');
     const [price, setPrice] = useState(0);
+    const [quantity, setQuantity] = useState(1);
     const [isOwnFabric, setIsOwnFabric] = useState(false);
     const [measurements, setMeasurements] = useState<Record<string, string>>({});
     const measurementFields = apparel ? Object.keys(apparelMeasurements[apparel]?.shape || {}) : [];
     
     const handleAdd = () => {
-        if (!apparel || price <= 0) {
+        if (!apparel || price <= 0 || quantity <= 0) {
             // Basic validation
             return;
         }
@@ -168,12 +169,13 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
             type: 'stitching',
             name: `${apparel} Stitching`,
             price: price,
-            quantity: 1,
+            quantity: quantity,
             details: { apparel, measurements, isOwnFabric }
         });
         setOpen(false);
         setApparel('');
         setPrice(0);
+        setQuantity(1);
         setMeasurements({});
         setIsOwnFabric(false);
     }
@@ -189,7 +191,7 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
                     <DialogDescription>Select apparel, enter measurements and price.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                            <Label>Apparel Type</Label>
                            <Select onValueChange={setApparel} value={apparel}>
@@ -202,6 +204,10 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
                         <div className="space-y-2">
                             <Label>Stitching Price</Label>
                             <Input type="text" inputMode="numeric" value={price || ''} onChange={e => setPrice(Number(e.target.value.replace(/[^0-9]/g, '')))} placeholder="Enter price"/>
+                        </div>
+                         <div className="space-y-2">
+                            <Label>Quantity</Label>
+                            <Input type="text" inputMode="numeric" value={quantity || ''} onChange={e => setQuantity(Number(e.target.value.replace(/[^0-9]/g, '')))} placeholder="Qty"/>
                         </div>
                     </div>
                     <div className="flex items-center space-x-2">
