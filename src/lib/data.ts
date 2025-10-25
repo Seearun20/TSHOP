@@ -129,12 +129,14 @@ export const pyjamaMeasurements = z.object({
 export const twoPieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape });
 export const threePieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape, basketLength: z.string().optional() });
 export const sherwaniMeasurements = twoPieceSuitMeasurements;
+export const kurtaPyjamaMeasurements = z.object({ ...shirtMeasurements.shape, ...pantMeasurements.shape });
+
 
 // Master Apparel Measurement Definition
 export const apparelMeasurements: Record<string, z.ZodObject<any>> = {
   'Pant': pantMeasurements,
   'Shirt': shirtMeasurements,
-  'Kurta Pyjama': pyjamaMeasurements,
+  'Kurta Pyjama': kurtaPyjamaMeasurements,
   '2pc Suit': twoPieceSuitMeasurements,
   '3pc Suit': threePieceSuitMeasurements,
   'Sherwani': sherwaniMeasurements,

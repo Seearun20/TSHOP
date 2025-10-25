@@ -69,7 +69,7 @@ import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, Doc
 import { Separator } from "@/components/ui/separator";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { apparelMeasurements, blazerMeasurements, pantMeasurements, basketMeasurements } from "@/lib/data";
+import { apparelMeasurements, blazerMeasurements, pantMeasurements, basketMeasurements, shirtMeasurements } from "@/lib/data";
 
 export interface Customer {
     id: string;
@@ -212,10 +212,15 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
             <div>
               <h3 className="text-sm font-medium mb-2">Optional Measurements</h3>
               {Object.keys(apparelMeasurements).map(apparel => {
-                 if (apparel === '2pc Suit' || apparel === '3pc Suit' || apparel === 'Sherwani') return null; // Handled separately
+                 if (apparel === '2pc Suit' || apparel === '3pc Suit' || apparel === 'Sherwani' || apparel === 'Kurta Pyjama') return null; // Handled separately
                  return renderMeasurementFields(apparel, apparelMeasurements[apparel]);
               })}
               
+              <div>
+                <h4 className="text-xs font-semibold uppercase text-muted-foreground mt-4 mb-2">Kurta Pyjama</h4>
+                {renderMeasurementFields('Shirt', shirtMeasurements)}
+                {renderMeasurementFields('Pant', pantMeasurements)}
+              </div>
               <div>
                 <h4 className="text-xs font-semibold uppercase text-muted-foreground mt-4 mb-2">2pc Suit / Sherwani</h4>
                 {renderMeasurementFields('Blazer', blazerMeasurements)}

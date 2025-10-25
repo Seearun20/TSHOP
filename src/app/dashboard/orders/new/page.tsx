@@ -70,7 +70,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Order } from "../page";
 import { Textarea } from "@/components/ui/textarea";
-import { apparelMeasurements, pantMeasurements, blazerMeasurements, basketMeasurements } from "@/lib/data";
+import { apparelMeasurements, pantMeasurements, blazerMeasurements, basketMeasurements, shirtMeasurements } from "@/lib/data";
 
 
 const orderItemSchema = z.object({
@@ -205,6 +205,15 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
         );
     }
     
+    const renderKurtaPyjamaMeasurements = () => {
+        return (
+            <div className="space-y-4">
+                {renderMeasurementFields(shirtMeasurements, 'Kurta Measurements')}
+                {renderMeasurementFields(pantMeasurements, 'Pyjama Measurements')}
+            </div>
+        )
+    }
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -253,9 +262,11 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
                                     </Button>
                                 )}
                             </div>
-                            { (apparel === '2pc Suit' || apparel === '3pc Suit' || apparel === 'Sherwani')
-                              ? renderSuitMeasurements(apparel as any)
-                              : renderMeasurementFields(apparelMeasurements[apparel])
+                            { apparel === 'Kurta Pyjama'
+                              ? renderKurtaPyjamaMeasurements()
+                              : (apparel === '2pc Suit' || apparel === '3pc Suit' || apparel === 'Sherwani')
+                                ? renderSuitMeasurements(apparel as any)
+                                : renderMeasurementFields(apparelMeasurements[apparel])
                             }
                         </div>
                     )}
@@ -486,7 +497,11 @@ export default function NewOrderPage() {
                             updates[`measurements.Basket.basketLength`] = measurements['basketLength'];
                             measurementsUpdated = true;
                         }
-                    } else {
+                    } else if (apparel === 'Kurta Pyjama') {
+                        updateNestedMeasurements('Shirt', measurements);
+                        updateNestedMeasurements('Pant', measurements);
+                    }
+                    else {
                         updateNestedMeasurements(apparel, measurements);
                     }
                 }

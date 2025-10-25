@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,7 +9,7 @@ import { Order } from "@/app/dashboard/orders/page";
 import { Customer } from "@/app/dashboard/customers/page";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apparelMeasurements, blazerMeasurements, pantMeasurements } from "@/lib/data";
+import { apparelMeasurements, blazerMeasurements, pantMeasurements, shirtMeasurements } from "@/lib/data";
 
 export default function ReceiptPrintPage({ params }: { params: { id: string } }) {
   const [order, setOrder] = useState<Order | null>(null);
@@ -144,6 +145,23 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
     )
   }
 
+  const renderKurtaPyjamaMeasurements = (item: OrderItem) => {
+    const { measurements } = item.details;
+    return (
+        <div className="space-y-3">
+            <div>
+                <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Kurta</h5>
+                {renderMeasurementGrid(measurements, shirtMeasurements)}
+            </div>
+            <div>
+                <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Pyjama</h5>
+                {renderMeasurementGrid(measurements, pantMeasurements)}
+            </div>
+        </div>
+    )
+  }
+
+
   return (
     <div className="print-content bg-gray-100 print:bg-white">
       {slips.map((slipItems, slipIndex) => (
@@ -204,6 +222,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
                 if (!apparelSchema) return null;
 
                 const isSuit = item.details.apparel === '2pc Suit' || item.details.apparel === '3pc Suit' || item.details.apparel === 'Sherwani';
+                const isKurtaPyjama = item.details.apparel === 'Kurta Pyjama';
                 
                 return (
                   <div 
@@ -216,9 +235,11 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
                       </h4>
                     </div>
                     
-                    {isSuit 
-                        ? renderSuitMeasurements(item)
-                        : renderMeasurementGrid(item.details.measurements, apparelSchema)
+                    {isKurtaPyjama
+                        ? renderKurtaPyjamaMeasurements(item)
+                        : isSuit 
+                            ? renderSuitMeasurements(item)
+                            : renderMeasurementGrid(item.details.measurements, apparelSchema)
                     }
                     
                     {item.details.remarks && (
