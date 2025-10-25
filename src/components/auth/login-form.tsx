@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -21,9 +20,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
 const LoginSchema = z.object({
-  phone: z
-    .string()
-    .min(10, { message: "Phone number must be at least 10 digits." }),
   password: z.string().min(1, { message: "Password is required." }),
 });
 
@@ -34,7 +30,7 @@ export function LoginForm() {
 
   const form = useForm<z.infer<typeof LoginSchema>>({
     resolver: zodResolver(LoginSchema),
-    defaultValues: { phone: "", password: "" },
+    defaultValues: { password: "" },
   });
 
   const handleSubmit = async (values: z.infer<typeof LoginSchema>) => {
@@ -68,22 +64,6 @@ export function LoginForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-        <FormField
-          control={form.control}
-          name="phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Phone Number</FormLabel>
-              <FormControl>
-                <div className="flex">
-                    <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">+91</span>
-                    <Input placeholder="Your 10-digit phone number" {...field} onChange={e => field.onChange(e.target.value.replace(/[^0-9]/g, ''))} />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
         <FormField
           control={form.control}
           name="password"
