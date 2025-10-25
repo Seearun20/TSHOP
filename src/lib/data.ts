@@ -1,5 +1,7 @@
 
 
+import { z } from 'zod';
+
 // Mock data for StitchSavvy
 
 export const financialSummary = {
@@ -72,4 +74,56 @@ export const serviceCharges = {
     '2pc Suit': 3500,
     'Blazer': 2500,
     'Sherwani': 7000
+};
+
+// Measurement Schemas
+export const pantMeasurements = z.object({ 
+    length: z.string().optional(), 
+    waist: z.string().optional(), 
+    hip: z.string().optional(), 
+    thigh: z.string().optional(),
+    bottom: z.string().optional(),
+    latak: z.string().optional(),
+    mori: z.string().optional(),
+});
+export const shirtMeasurements = z.object({ 
+    length: z.string().optional(), 
+    shoulder: z.string().optional(),
+    sleeve: z.string().optional(),
+    chest: z.string().optional(), 
+    waist: z.string().optional(), 
+    hip: z.string().optional(),
+    collar: z.string().optional(),
+});
+export const blazerMeasurements = z.object({
+    length: z.string().optional(),
+    shoulder: z.string().optional(),
+    sleeve: z.string().optional(),
+    chest: z.string().optional(),
+    waist: z.string().optional(),
+    hip: z.string().optional(),
+    collar: z.string().optional(),
+});
+export const pyjamaMeasurements = z.object({
+    length: z.string().optional(),
+    waist: z.string().optional(),
+    hip: z.string().optional(),
+    mori: z.string().optional(),
+    latak: z.string().optional(),
+    bottom: z.string().optional(),
+});
+
+
+export const suitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape });
+export const sherwaniMeasurements = z.object({ ...suitMeasurements.shape, innerKurtaLength: z.string().optional() });
+
+
+export const apparelMeasurements: Record<string, z.ZodObject<any>> = {
+  'Pant': pantMeasurements,
+  'Shirt': shirtMeasurements,
+  'Kurta Pyjama': pyjamaMeasurements,
+  '3pc Suit': suitMeasurements,
+  '2pc Suit': suitMeasurements,
+  'Sherwani': sherwaniMeasurements,
+  'Blazer': blazerMeasurements,
 };

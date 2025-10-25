@@ -38,7 +38,7 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, PlusCircle, Printer, Trash2, X } from "lucide-react";
+import { CalendarIcon, PlusCircle, Printer, Trash2, X, History } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -70,6 +70,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Order } from "../page";
 import { Textarea } from "@/components/ui/textarea";
+import { apparelMeasurements } from "@/lib/data";
 
 
 const orderItemSchema = z.object({
@@ -99,59 +100,9 @@ const orderSchema = z.object({
 type OrderFormValues = z.infer<typeof orderSchema>;
 type OrderItem = z.infer<typeof orderItemSchema>;
 
-// Measurement Schemas
-const pantMeasurements = z.object({ 
-    length: z.string().optional(), 
-    waist: z.string().optional(), 
-    hip: z.string().optional(), 
-    thigh: z.string().optional(),
-    bottom: z.string().optional(),
-    latak: z.string().optional(),
-    mori: z.string().optional(),
-});
-const shirtMeasurements = z.object({ 
-    length: z.string().optional(), 
-    shoulder: z.string().optional(),
-    sleeve: z.string().optional(),
-    chest: z.string().optional(), 
-    waist: z.string().optional(), 
-    hip: z.string().optional(),
-    collar: z.string().optional(),
-});
-const blazerMeasurements = z.object({
-    length: z.string().optional(),
-    shoulder: z.string().optional(),
-    sleeve: z.string().optional(),
-    chest: z.string().optional(),
-    waist: z.string().optional(),
-    hip: z.string().optional(),
-    collar: z.string().optional(),
-});
-const pyjamaMeasurements = z.object({
-    length: z.string().optional(),
-    waist: z.string().optional(),
-    hip: z.string().optional(),
-    mori: z.string().optional(),
-    latak: z.string().optional(),
-    bottom: z.string().optional(),
-});
 
-
-const suitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape });
-const sherwaniMeasurements = z.object({ ...suitMeasurements.shape, innerKurtaLength: z.string().optional() });
-
-
-const apparelMeasurements: Record<string, z.ZodObject<any>> = {
-  'Pant': pantMeasurements,
-  'Shirt': shirtMeasurements,
-  'Kurta Pyjama': pyjamaMeasurements,
-  '3pc Suit': suitMeasurements,
-  '2pc Suit': suitMeasurements,
-  'Sherwani': sherwaniMeasurements,
-  'Blazer': blazerMeasurements,
-};
-
-function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) => void }) {
+function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: (item: OrderItem) => void; customerId?: string; orders: Order[] }) {
+    const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [apparel, setApparel] = useState('');
     const [price, setPrice] = useState(0);
@@ -159,7 +110,34 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
     const [isOwnFabric, setIsOwnFabric] = useState(false);
     const [measurements, setMeasurements] = useState<Record<string, string>>({});
     const [remarks, setRemarks] = useState('');
-    const measurementFields = apparel ? Object.keys(apparelMeasurements[apparel]?.shape || {}) : [];
+    
+    const measurementFields = apparel ? Object.keys(apparelMeasurements[apparel as keyof typeof apparelMeasurements]?.shape || {}) : [];
+
+    const previousMeasurement = useMemo(() => {
+        if (!customerId || !apparel || !orders.length) return null;
+
+        const customerOrders = orders
+            .filter(o => o.customerId === customerId)
+            .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
+
+        for (const order of customerOrders) {
+            const item = order.items.find(i => i.type === 'stitching' && i.details.apparel === apparel);
+            if (item && item.details.measurements) {
+                return item.details.measurements;
+            }
+        }
+        return null;
+    }, [customerId, apparel, orders]);
+
+    const handleFetchMeasurements = () => {
+        if (previousMeasurement) {
+            setMeasurements(previousMeasurement);
+            toast({
+                title: "Measurements Fetched",
+                description: `Loaded previous measurements for ${apparel}.`
+            });
+        }
+    };
     
     const handleAdd = () => {
         if (!apparel || price <= 0 || quantity <= 0) {
@@ -224,6 +202,12 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
                         <div>
                              <div className="flex items-center justify-between mb-2">
                                 <h4 className="font-medium">Measurements ({apparel})</h4>
+                                {previousMeasurement && (
+                                    <Button type="button" variant="outline" size="sm" onClick={handleFetchMeasurements}>
+                                        <History className="mr-2 h-4 w-4"/>
+                                        Fetch Previous
+                                    </Button>
+                                )}
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {measurementFields.map(field => (
@@ -265,6 +249,7 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
 export default function NewOrderPage() {
     const { toast } = useToast();
     const [customers, setCustomers] = useState<Customer[]>([]);
+    const [orders, setOrders] = useState<Order[]>([]);
     const [readyMadeStock, setReadyMadeStock] = useState<ReadyMadeStockItem[]>([]);
     const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
     const [lastCreatedOrder, setLastCreatedOrder] = useState<Order | null>(null);
@@ -277,6 +262,7 @@ export default function NewOrderPage() {
     useEffect(() => {
         const collections = {
             customers: setCustomers,
+            orders: setOrders,
             readyMadeStock: setReadyMadeStock,
             fabricStock: setFabricStock,
         };
@@ -308,6 +294,7 @@ export default function NewOrderPage() {
     const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
     const watchedItems = form.watch("items");
     const customerType = form.watch("customerType");
+    const watchedCustomerId = form.watch("customerId");
 
     const subtotal = useMemo(() => watchedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0), [watchedItems]);
     const advance = form.watch("advance") || 0;
@@ -359,7 +346,14 @@ export default function NewOrderPage() {
       runTransaction(db, async (transaction) => {
         // --- 1. READS ---
         const counterRef = doc(db, "counters", "orders");
-        const counterDoc = await transaction.get(counterRef);
+        let counterDoc;
+        try {
+            counterDoc = await transaction.get(counterRef);
+        } catch (e) {
+            // Handle case where counter doc doesn't exist yet, especially for permission errors on get
+            console.warn("Counter document might not exist or there was a permission error on get. Assuming starting from scratch.");
+        }
+
 
         const stockRefs = values.items
             .filter(item => (item.type === 'readymade' || item.type === 'fabric') && item.details.stockId)
@@ -372,7 +366,7 @@ export default function NewOrderPage() {
 
         // --- 2. WRITES (will be staged) ---
         let newOrderNumber = 1001;
-        if (counterDoc.exists()) {
+        if (counterDoc?.exists()) {
           newOrderNumber = counterDoc.data().lastOrderNumber + 1;
         }
 
@@ -409,7 +403,11 @@ export default function NewOrderPage() {
         };
         transaction.set(orderDocRef, newOrderData);
 
-        transaction.update(counterRef, { lastOrderNumber: newOrderNumber });
+        if (counterDoc?.exists()) {
+            transaction.update(counterRef, { lastOrderNumber: newOrderNumber });
+        } else {
+            transaction.set(counterRef, { lastOrderNumber: newOrderNumber });
+        }
 
         stockDocs.forEach((stockDoc, index) => {
             const item = values.items.filter(i => (i.type === 'readymade' || i.type === 'fabric') && i.details.stockId)[index];
@@ -422,11 +420,37 @@ export default function NewOrderPage() {
             }
         });
         
+        // Save measurements to customer profile
+        const stitchingItems = values.items.filter(item => item.type === 'stitching');
+        if (stitchingItems.length > 0) {
+            const customerRef = doc(db, 'customers', finalCustomerId);
+            const customerSnap = await transaction.get(customerRef);
+            if (customerSnap.exists()) {
+                const customerData = customerSnap.data() as Customer;
+                const updatedMeasurements = customerData.measurements || {};
+                let measurementsUpdated = false;
+
+                stitchingItems.forEach(item => {
+                    const { apparel, measurements } = item.details;
+                    if (apparel && measurements && Object.keys(measurements).length > 0) {
+                        updatedMeasurements[apparel] = measurements;
+                        measurementsUpdated = true;
+                    }
+                });
+                
+                if (measurementsUpdated) {
+                    transaction.update(customerRef, { measurements: updatedMeasurements });
+                }
+            }
+        }
+
+
         return {
           id: orderDocRef.id,
           customerName: finalCustomerName,
           ...newOrderData,
         } as Order;
+
       }).then((savedOrder) => {
         setLastCreatedOrder(savedOrder);
 
@@ -452,6 +476,7 @@ export default function NewOrderPage() {
           advance: 0,
         });
       }).catch((error: any) => {
+        console.error("Transaction failed: ", error);
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'orders', 
           operation: 'create',
@@ -523,7 +548,7 @@ export default function NewOrderPage() {
                         <CardContent className="space-y-6">
                             {/* Stitching Service */}
                             <div className="p-4 border rounded-md">
-                               <StitchingServiceDialog onAddItem={handleAddItem} />
+                               <StitchingServiceDialog onAddItem={handleAddItem} customerId={watchedCustomerId} orders={orders} />
                             </div>
                             
                             {/* Ready-Made */}
@@ -532,7 +557,7 @@ export default function NewOrderPage() {
                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                    <Select onValueChange={id => setSelectedReadyMade(s => ({ item: readyMadeStock.find(i => i.id === id)!, quantity: 1, price: 0 }))}>
                                        <SelectTrigger className="md:col-span-2"><SelectValue placeholder="Select ready-made item..."/></SelectTrigger>
-                                       <SelectContent>{readyMadeStock.map(s => <SelectItem key={s.id} value={s.id}>{s.item} - {s.size} ({s.quantity} left)</SelectItem>)}</SelectContent>
+                                       <SelectContent>{readyMadeStock.map(s => <SelectItem key={s.id} value={s.id} disabled={s.quantity <= 0}>{s.item} - {s.size} ({s.quantity} left)</SelectItem>)}</SelectContent>
                                    </Select>
                                    <Input type="text" inputMode="numeric" value={selectedReadyMade?.quantity || ''} onChange={e => setSelectedReadyMade(s => ({...s!, quantity: Number(e.target.value.replace(/[^0-9]/g, '')) }))} placeholder="Qty" disabled={!selectedReadyMade}/>
                                    <Input type="text" inputMode="numeric" value={selectedReadyMade?.price || ''} onChange={e => setSelectedReadyMade(s => ({...s!, price: Number(e.target.value.replace(/[^0-9]/g, '')) }))} placeholder="Selling Price" disabled={!selectedReadyMade}/>
@@ -546,7 +571,7 @@ export default function NewOrderPage() {
                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                    <Select onValueChange={id => setSelectedFabric(s => ({ item: fabricStock.find(i => i.id === id)!, length: 1, price: 0 }))}>
                                        <SelectTrigger className="md:col-span-2"><SelectValue placeholder="Select fabric..."/></SelectTrigger>
-                                       <SelectContent>{fabricStock.map(s => <SelectItem key={s.id} value={s.id}>{s.type} ({s.length}m left)</SelectItem>)}</SelectContent>
+                                       <SelectContent>{fabricStock.map(s => <SelectItem key={s.id} value={s.id} disabled={s.length <= 0}>{s.type} ({s.length}m left)</SelectItem>)}</SelectContent>
                                    </Select>
                                    <Input type="text" inputMode="numeric" value={selectedFabric?.length || ''} onChange={e => setSelectedFabric(s => ({...s!, length: Number(e.target.value.replace(/[^0-9.]/g, '')) }))} placeholder="Length (m)" disabled={!selectedFabric}/>
                                    <Input type="text" inputMode="numeric" value={selectedFabric?.price || ''} onChange={e => setSelectedFabric(s => ({...s!, price: Number(e.target.value.replace(/[^0-9]/g, '')) }))} placeholder="Total Price" disabled={!selectedFabric}/>
