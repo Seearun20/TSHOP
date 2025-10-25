@@ -70,7 +70,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Order } from "../page";
 import { Textarea } from "@/components/ui/textarea";
-import { apparelMeasurements } from "@/lib/data";
+import { apparelMeasurements, pantMeasurements, blazerMeasurements, basketMeasurements } from "@/lib/data";
 
 
 const orderItemSchema = z.object({
@@ -161,42 +161,44 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
         setRemarks('');
     }
 
-    const renderMeasurementFields = (fields: string[]) => {
+    const renderMeasurementFields = (subSchema: z.ZodObject<any>, title?: string) => {
       return (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {fields.map(field => (
-                   <div key={field} className="space-y-2">
-                      <Label className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '')}</Label>
-                      <Input 
-                          value={measurements[field] || ''} 
-                          onChange={e => setMeasurements(m => ({...m, [field]: e.target.value}))}
-                          placeholder="..."
-                      />
-                  </div>
-              ))}
+          <div className="mb-2">
+              {title && <h4 className="font-medium text-sm text-muted-foreground mb-2">{title}</h4>}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.keys(subSchema.shape).map(field => (
+                       <div key={field} className="space-y-2">
+                          <Label className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '')}</Label>
+                          <Input 
+                              value={measurements[field] || ''} 
+                              onChange={e => setMeasurements(m => ({...m, [field]: e.target.value}))}
+                              placeholder="..."
+                          />
+                      </div>
+                  ))}
+              </div>
           </div>
       );
   }
 
-    const renderSuitMeasurements = () => {
-        const coatFields = Object.keys(apparelMeasurements['Blazer'].shape);
-        const pantFields = Object.keys(apparelMeasurements['Pant'].shape);
-        const basketFields = apparel === '3pc Suit' ? Object.keys(apparelMeasurements['Basket'].shape) : [];
-
+    const renderSuitMeasurements = (suitType: '2pc Suit' | '3pc Suit' | 'Sherwani') => {
         return (
             <div className="space-y-4">
-                <div>
-                    <h4 className="font-medium text-sm text-muted-foreground mb-2">Coat Measurements</h4>
-                    {renderMeasurementFields(coatFields)}
-                </div>
-                <div>
-                    <h4 className="font-medium text-sm text-muted-foreground mb-2">Pant Measurements</h4>
-                    {renderMeasurementFields(pantFields)}
-                </div>
-                {apparel === '3pc Suit' && (
-                    <div>
+                {renderMeasurementFields(blazerMeasurements, 'Coat Measurements')}
+                {renderMeasurementFields(pantMeasurements, 'Pant Measurements')}
+                {suitType === '3pc Suit' && (
+                    <div className="mb-2">
                         <h4 className="font-medium text-sm text-muted-foreground mb-2">Basket Measurements</h4>
-                        {renderMeasurementFields(basketFields)}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="space-y-2">
+                                <Label className="capitalize text-xs">Basket Length</Label>
+                                <Input
+                                    value={measurements['basketLength'] || ''}
+                                    onChange={e => setMeasurements(m => ({ ...m, basketLength: e.target.value }))}
+                                    placeholder="..."
+                                />
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -208,7 +210,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
             <DialogTrigger asChild>
                 <Button type="button"><PlusCircle className="mr-2"/>Add Stitching Service</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>Add Stitching Service</DialogTitle>
                     <DialogDescription>Select apparel, enter measurements and price.</DialogDescription>
@@ -251,7 +253,10 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
                                     </Button>
                                 )}
                             </div>
-                            {apparel === '2pc Suit' || apparel === '3pc Suit' ? renderSuitMeasurements() : renderMeasurementFields(measurementFields)}
+                            { (apparel === '2pc Suit' || apparel === '3pc Suit' || apparel === 'Sherwani')
+                              ? renderSuitMeasurements(apparel as any)
+                              : renderMeasurementFields(apparelMeasurements[apparel])
+                            }
                         </div>
                     )}
                     
@@ -381,7 +386,6 @@ export default function NewOrderPage() {
         try {
             counterDoc = await transaction.get(counterRef);
         } catch (e) {
-            // Handle case where counter doc doesn't exist yet, especially for permission errors on get
             console.warn("Counter document might not exist or there was a permission error on get. Assuming starting from scratch.");
         }
 
@@ -461,12 +465,30 @@ export default function NewOrderPage() {
             stitchingItems.forEach(item => {
                 const { apparel, measurements } = item.details;
                 if (apparel && measurements && Object.keys(measurements).length > 0) {
-                    Object.keys(measurements).forEach(field => {
-                         if (measurements[field]) { // only update if value is not empty
-                            updates[`measurements.${apparel}.${field}`] = measurements[field];
+                    
+                    const updateNestedMeasurements = (apparelName: string, measurementData: Record<string,string>) => {
+                         Object.keys(measurementData).forEach(field => {
+                            if (measurementData[field]) { // only update if value is not empty
+                                updates[`measurements.${apparelName}.${field}`] = measurementData[field];
+                                measurementsUpdated = true;
+                            }
+                        });
+                    }
+
+                    if (apparel === '2pc Suit' || apparel === 'Sherwani') {
+                        updateNestedMeasurements('Blazer', measurements);
+                        updateNestedMeasurements('Pant', measurements);
+                    } else if (apparel === '3pc Suit') {
+                        updateNestedMeasurements('Blazer', measurements);
+                        updateNestedMeasurements('Pant', measurements);
+                        // For 3pc suit, basketLength is stored at the top level of measurements.
+                         if (measurements['basketLength']) {
+                            updates[`measurements.Basket.basketLength`] = measurements['basketLength'];
                             measurementsUpdated = true;
                         }
-                    });
+                    } else {
+                        updateNestedMeasurements(apparel, measurements);
+                    }
                 }
             });
             

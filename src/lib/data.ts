@@ -77,7 +77,7 @@ export const serviceCharges = {
     'Basket': 1500,
 };
 
-// Measurement Schemas
+// Base Measurement Schemas
 export const pantMeasurements = z.object({ 
     length: z.string().optional(), 
     waist: z.string().optional(), 
@@ -97,7 +97,7 @@ export const shirtMeasurements = z.object({
     collar: z.string().optional(),
 });
 
-export const coatMeasurements = z.object({
+export const blazerMeasurements = z.object({
     coatLength: z.string().optional(),
     coatShoulder: z.string().optional(),
     coatSleeve: z.string().optional(),
@@ -116,7 +116,6 @@ export const basketMeasurements = z.object({
     basketCollar: z.string().optional(),
 });
 
-
 export const pyjamaMeasurements = z.object({
     length: z.string().optional(),
     waist: z.string().optional(),
@@ -126,12 +125,12 @@ export const pyjamaMeasurements = z.object({
     bottom: z.string().optional(),
 });
 
+// Composite Schemas for Apparel
+export const twoPieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape });
+export const threePieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape, basketLength: z.string().optional() });
+export const sherwaniMeasurements = twoPieceSuitMeasurements;
 
-export const twoPieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...coatMeasurements.shape });
-export const threePieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...coatMeasurements.shape, ...basketMeasurements.shape });
-export const sherwaniMeasurements = z.object({ ...twoPieceSuitMeasurements.shape, innerKurtaLength: z.string().optional() });
-
-
+// Master Apparel Measurement Definition
 export const apparelMeasurements: Record<string, z.ZodObject<any>> = {
   'Pant': pantMeasurements,
   'Shirt': shirtMeasurements,
@@ -139,6 +138,6 @@ export const apparelMeasurements: Record<string, z.ZodObject<any>> = {
   '2pc Suit': twoPieceSuitMeasurements,
   '3pc Suit': threePieceSuitMeasurements,
   'Sherwani': sherwaniMeasurements,
-  'Blazer': coatMeasurements,
+  'Blazer': blazerMeasurements, // Also referred to as 'Coat'
   'Basket': basketMeasurements,
 };
