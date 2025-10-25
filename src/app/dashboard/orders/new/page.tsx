@@ -185,22 +185,8 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
         return (
             <div className="space-y-4">
                 {renderMeasurementFields(blazerMeasurements, 'Coat Measurements')}
+                {suitType === '3pc Suit' && renderMeasurementFields(basketMeasurements)}
                 {renderMeasurementFields(pantMeasurements, 'Pant Measurements')}
-                {suitType === '3pc Suit' && (
-                    <div className="mb-2">
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">Basket Measurements</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="space-y-2">
-                                <Label className="capitalize text-xs">Basket Length</Label>
-                                <Input
-                                    value={measurements['basketLength'] || ''}
-                                    onChange={e => setMeasurements(m => ({ ...m, basketLength: e.target.value }))}
-                                    placeholder="..."
-                                />
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         );
     }
@@ -731,4 +717,3 @@ export default function NewOrderPage() {
     </Form>
     );
 }
-

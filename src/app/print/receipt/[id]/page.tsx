@@ -9,7 +9,7 @@ import { Order } from "@/app/dashboard/orders/page";
 import { Customer } from "@/app/dashboard/customers/page";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apparelMeasurements, blazerMeasurements, pantMeasurements, shirtMeasurements } from "@/lib/data";
+import { apparelMeasurements, blazerMeasurements, pantMeasurements, shirtMeasurements, basketMeasurements } from "@/lib/data";
 
 export default function ReceiptPrintPage({ params }: { params: { id: string } }) {
   const [order, setOrder] = useState<Order | null>(null);
@@ -120,27 +120,18 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
 
   const renderSuitMeasurements = (item: OrderItem) => {
     const { apparel, measurements } = item.details;
+    const allCoatMeasurements = {...blazerMeasurements.shape, ...(apparel === '3pc Suit' ? basketMeasurements.shape : {})};
+    
     return (
         <div className="space-y-3">
             <div>
                 <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Coat</h5>
-                {renderMeasurementGrid(measurements, blazerMeasurements)}
+                {renderMeasurementGrid(measurements, z.object(allCoatMeasurements))}
             </div>
             <div>
                 <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Pant</h5>
                 {renderMeasurementGrid(measurements, pantMeasurements)}
             </div>
-            {apparel === '3pc Suit' && measurements.basketLength && (
-                <div>
-                    <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Basket</h5>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                        <div className="flex justify-between items-center border-b border-dotted border-gray-400 pb-0.5">
-                            <span className="text-[10px] text-gray-600 font-medium capitalize">Length:</span>
-                            <span className="text-xs font-bold text-gray-900">{measurements.basketLength}</span>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     )
   }

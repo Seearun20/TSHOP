@@ -109,12 +109,8 @@ export const blazerMeasurements = z.object({
 
 export const basketMeasurements = z.object({
     basketLength: z.string().optional(),
-    basketShoulder: z.string().optional(),
-    basketChest: z.string().optional(),
-    basketWaist: z.string().optional(),
-    basketHip: z.string().optional(),
-    basketCollar: z.string().optional(),
 });
+
 
 export const pyjamaMeasurements = z.object({
     length: z.string().optional(),
@@ -127,7 +123,7 @@ export const pyjamaMeasurements = z.object({
 
 // Composite Schemas for Apparel
 export const twoPieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape });
-export const threePieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape, basketLength: z.string().optional() });
+export const threePieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape, ...basketMeasurements.shape });
 export const sherwaniMeasurements = twoPieceSuitMeasurements;
 export const kurtaPyjamaMeasurements = z.object({ ...shirtMeasurements.shape, ...pantMeasurements.shape });
 
