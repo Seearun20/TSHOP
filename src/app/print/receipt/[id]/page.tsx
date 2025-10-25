@@ -40,7 +40,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
 
   useEffect(() => {
     if (!loading && order) {
-      const stitchingItems = order.items.filter(item => item.type === 'stitching' && item.details?.measurements);
+      const stitchingItems = order.items.filter(item => item.type === 'stitching');
       if (stitchingItems.length > 0) {
         setTimeout(() => window.print(), 500);
       }
@@ -65,7 +65,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
     return <div className="p-8 text-center text-gray-600">Order not found.</div>;
   }
   
-  const stitchingItems = order.items.filter(item => item.type === 'stitching' && item.details?.measurements);
+  const stitchingItems = order.items.filter(item => item.type === 'stitching');
     
   if (stitchingItems.length === 0) {
     return (
@@ -151,26 +151,36 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
                 >
                   <div className="bg-gray-900 text-white text-center py-1.5 px-3 rounded mb-2">
                     <h4 className="font-bold uppercase tracking-wider text-sm">
-                      {item.details.apparel}
+                      {item.details.apparel} (Qty: {item.quantity})
                     </h4>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    {Object.entries(item.details.measurements).map(([key, value]) => 
-                      value && (
-                        <div 
-                          key={key} 
-                          className="flex justify-between items-center border-b border-dotted border-gray-400 pb-0.5"
-                        >
-                          <span className="text-[10px] text-gray-600 font-medium capitalize">
-                            {key.replace(/([A-Z])/g, ' $1').trim()}:
-                          </span>
-                          <span className="text-xs font-bold text-gray-900">{value as string}</span>
-                        </div>
-                      )
-                    )}
-                  </div>
+                  {item.details.measurements && Object.keys(item.details.measurements).length > 0 && (
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                        {Object.entries(item.details.measurements).map(([key, value]) => 
+                        value && (
+                            <div 
+                            key={key} 
+                            className="flex justify-between items-center border-b border-dotted border-gray-400 pb-0.5"
+                            >
+                            <span className="text-[10px] text-gray-600 font-medium capitalize">
+                                {key.replace(/([A-Z])/g, ' $1').trim()}:
+                            </span>
+                            <span className="text-xs font-bold text-gray-900">{value as string}</span>
+                            </div>
+                        )
+                        )}
+                    </div>
+                  )}
                   
+                  {item.details.remarks && (
+                    <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-2 print:bg-blue-50">
+                      <p className="text-[10px] font-bold text-blue-800">
+                        <span className="font-extrabold">Remarks:</span> {item.details.remarks}
+                      </p>
+                    </div>
+                  )}
+
                   {item.details.isOwnFabric && (
                     <div className="mt-2 bg-yellow-100 border border-yellow-400 rounded px-2 py-1 print:bg-yellow-100">
                       <p className="text-[10px] font-bold text-center text-yellow-800">

@@ -69,6 +69,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Order } from "../page";
+import { Textarea } from "@/components/ui/textarea";
 
 
 const orderItemSchema = z.object({
@@ -157,6 +158,7 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
     const [quantity, setQuantity] = useState(1);
     const [isOwnFabric, setIsOwnFabric] = useState(false);
     const [measurements, setMeasurements] = useState<Record<string, string>>({});
+    const [remarks, setRemarks] = useState('');
     const measurementFields = apparel ? Object.keys(apparelMeasurements[apparel]?.shape || {}) : [];
     
     const handleAdd = () => {
@@ -170,7 +172,7 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
             name: `${apparel} Stitching`,
             price: price,
             quantity: quantity,
-            details: { apparel, measurements, isOwnFabric }
+            details: { apparel, measurements, isOwnFabric, remarks }
         });
         setOpen(false);
         setApparel('');
@@ -178,6 +180,7 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
         setQuantity(1);
         setMeasurements({});
         setIsOwnFabric(false);
+        setRemarks('');
     }
     
     return (
@@ -236,6 +239,18 @@ function StitchingServiceDialog({ onAddItem }: { onAddItem: (item: OrderItem) =>
                             </div>
                         </div>
                     )}
+                    
+                    {apparel && (
+                        <div className="pt-4 space-y-2">
+                            <Label>Additional Remarks</Label>
+                            <Textarea 
+                                value={remarks}
+                                onChange={e => setRemarks(e.target.value)}
+                                placeholder="e.g., Cross-pocket, specific button style..."
+                            />
+                        </div>
+                    )}
+
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
