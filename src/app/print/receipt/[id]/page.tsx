@@ -82,8 +82,8 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
     );
   }
 
-  // Split items into multiple slips if needed (max 2 items per slip for better readability)
-  const ITEMS_PER_SLIP = 2;
+  // One item per slip for better printing
+  const ITEMS_PER_SLIP = 1;
   const slips: typeof stitchingItems[][] = [];
   for (let i = 0; i < stitchingItems.length; i += ITEMS_PER_SLIP) {
     slips.push(stitchingItems.slice(i, i + ITEMS_PER_SLIP));
@@ -143,7 +143,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
             </div>
 
             {/* Measurements */}
-            <div className="flex-1 overflow-auto space-y-4">
+            <div className="flex-1 space-y-4">
               {slipItems.map((item, index) => (
                 <div 
                   key={index} 
@@ -191,7 +191,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
                 </div>
               ))}
               
-              {slipIndex < slips.length - 1 && (
+              {slips.length > 1 && (
                 <div className="text-center mt-2">
                   <p className="text-xs font-semibold text-gray-600">
                     Slip {slipIndex + 1} of {slips.length}
@@ -200,18 +200,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
               )}
             </div>
 
-            {/* Footer */}
-            <div className="mt-3 pt-3 border-t-2 border-gray-800 text-center">
-              <p className="text-[10px] font-bold text-gray-900">
-                Raghav Tailor & Fabric
-              </p>
-              <p className="text-[9px] text-gray-600">
-                Main Market Dineshpur | 8766877348
-              </p>
-              <p className="text-[9px] text-gray-600 mt-1">
-                Instagram: @raghavproffesional
-              </p>
-            </div>
+           
           </div>
         </div>
       ))}
