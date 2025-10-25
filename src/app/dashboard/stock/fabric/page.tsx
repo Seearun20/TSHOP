@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Archive } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -59,7 +59,7 @@ import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, memo, useMemo } from "react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, DocumentData } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
@@ -293,6 +293,10 @@ export default function FabricStockPage() {
     return () => unsubscribe();
   }, []);
 
+  const totalStockValue = useMemo(() => {
+    return fabricStock.reduce((acc, item) => acc + item.length * item.costPerMtr, 0);
+  }, [fabricStock]);
+
   const handleActionClick = (item: FabricStockItem, dialog: keyof typeof dialogs) => {
     setCurrentItem(item);
     setDialogs(prev => ({ ...prev, [dialog]: true }));
@@ -339,6 +343,18 @@ export default function FabricStockPage() {
             </DialogContent>
         </Dialog>
       </PageHeader>
+      
+      <Card className="sm:w-1/3">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
+            <Archive className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalStockValue)}</div>
+            <p className="text-xs text-muted-foreground">Total cost of all fabric stock.</p>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Fabric List</CardTitle>
@@ -353,6 +369,7 @@ export default function FabricStockPage() {
                 <TableHead>Fabric Type</TableHead>
                 <TableHead>Length (mtrs)</TableHead>
                 <TableHead>Cost/mtr</TableHead>
+                <TableHead>Total Value</TableHead>
                 <TableHead>Supplier</TableHead>
                 <TableHead>
                   <span className="sr-only">Actions</span>
@@ -365,6 +382,7 @@ export default function FabricStockPage() {
                   <TableCell className="font-medium">{item.type}</TableCell>
                   <TableCell>{item.length}</TableCell>
                   <TableCell>{formatCurrency(item.costPerMtr)}</TableCell>
+                  <TableCell className="font-medium">{formatCurrency(item.costPerMtr * item.length)}</TableCell>
                   <TableCell>{item.supplier}</TableCell>
                   <TableCell>
                     <DropdownMenu>

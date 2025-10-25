@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Archive } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -60,7 +60,7 @@ import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Select,
   SelectContent,
@@ -297,6 +297,10 @@ export default function ReadyMadeStockPage() {
     return () => unsubscribe();
   }, []);
 
+  const totalStockValue = useMemo(() => {
+    return readyMadeStock.reduce((acc, item) => acc + item.cost * item.quantity, 0);
+  }, [readyMadeStock]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -347,6 +351,18 @@ export default function ReadyMadeStockPage() {
           </DialogContent>
         </Dialog>
       </PageHeader>
+      
+      <Card className="sm:w-1/3">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
+            <Archive className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalStockValue)}</div>
+            <p className="text-xs text-muted-foreground">Total cost of all ready-made items.</p>
+        </CardContent>
+      </Card>
+      
       <Card>
         <CardHeader>
           <CardTitle>Inventory List</CardTitle>
@@ -362,6 +378,7 @@ export default function ReadyMadeStockPage() {
                 <TableHead>Size</TableHead>
                 <TableHead>Quantity</TableHead>
                 <TableHead>Cost Price</TableHead>
+                <TableHead>Total Value</TableHead>
                 <TableHead>Supplier</TableHead>
                 <TableHead>
                   <span className="sr-only">Actions</span>
@@ -375,6 +392,7 @@ export default function ReadyMadeStockPage() {
                   <TableCell>{item.size}</TableCell>
                   <TableCell>{item.quantity}</TableCell>
                   <TableCell>{formatCurrency(item.cost)}</TableCell>
+                  <TableCell className="font-medium">{formatCurrency(item.cost * item.quantity)}</TableCell>
                   <TableCell>{item.supplier}</TableCell>
                   <TableCell>
                     <AlertDialog>
