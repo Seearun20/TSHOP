@@ -158,7 +158,7 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
                         name={`measurements.${apparel}.${field}` as any}
                         render={({ field: formField }) => (
                             <FormItem>
-                                <FormLabel className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '')}</FormLabel>
+                                <FormLabel className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1').replace(/^(coat)\s/, '')}</FormLabel>
                                 <FormControl><Input placeholder="..." {...formField} /></FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -305,7 +305,7 @@ export default function CustomersPage() {
       const fieldStr = Object.entries(fields)
         .filter(([, value]) => value)
         .map(([key, value]) => {
-          const label = key.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '').replace(/^./, str => str.toUpperCase());
+          const label = key.replace(/([A-Z])/g, ' $1').replace(/^(coat)\s/, '').replace(/^./, str => str.toUpperCase());
           return `${label}: ${value}`;
         })
         .join(' | ');

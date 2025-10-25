@@ -168,7 +168,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {Object.keys(subSchema.shape).map(field => (
                        <div key={field} className="space-y-2">
-                          <Label className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '')}</Label>
+                          <Label className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1').replace(/^(coat)\s/, '')}</Label>
                           <Input 
                               value={measurements[field] || ''} 
                               onChange={e => setMeasurements(m => ({...m, [field]: e.target.value}))}
@@ -476,13 +476,9 @@ export default function NewOrderPage() {
                         updateNestedMeasurements('Blazer', measurements);
                         updateNestedMeasurements('Pant', measurements);
                     } else if (apparel === '3pc Suit') {
-                        updateNestedMeasurements('Blazer', measurements);
-                        updateNestedMeasurements('Pant', measurements);
-                        // For 3pc suit, basketLength is stored at the top level of measurements.
-                         if (measurements['basketLength']) {
-                            updates[`measurements.Basket.basketLength`] = measurements['basketLength'];
-                            measurementsUpdated = true;
-                        }
+                         updateNestedMeasurements('Blazer', measurements);
+                         updateNestedMeasurements('Pant', measurements);
+                         updateNestedMeasurements('Basket', measurements);
                     } else if (apparel === 'Kurta Pyjama') {
                         updateNestedMeasurements('Shirt', measurements);
                         updateNestedMeasurements('Pant', measurements);
