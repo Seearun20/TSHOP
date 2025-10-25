@@ -94,6 +94,7 @@ export interface Order {
   payments?: Payment[];
   // Properties to be added from customer data
   customerName?: string;
+  customerPhone?: string;
 }
 
 function UpdateStatusDialog({ order, setOpen, onUpdate }: { order: Order; setOpen: (open: boolean) => void; onUpdate: (id: string, status: Order['status']) => void; }) {
@@ -236,11 +237,15 @@ function OrdersPageClient() {
   }, []);
 
   const combinedOrders = useMemo(() => {
-    const customerMap = new Map(customers.map(c => [c.id, c.name]));
-    const allOrders = orders.map(order => ({
-      ...order,
-      customerName: customerMap.get(order.customerId) || "Unknown Customer"
-    })).sort((a,b) => b.orderNumber - a.orderNumber);
+    const customerMap = new Map(customers.map(c => [c.id, c]));
+    const allOrders = orders.map(order => {
+      const customer = customerMap.get(order.customerId);
+      return {
+        ...order,
+        customerName: customer?.name || "Unknown Customer",
+        customerPhone: customer?.phone || "",
+      };
+    }).sort((a,b) => b.orderNumber - a.orderNumber);
 
     if (!searchQuery) {
       return allOrders;
@@ -250,7 +255,8 @@ function OrdersPageClient() {
       const query = searchQuery.toLowerCase();
       const customerName = order.customerName?.toLowerCase() || '';
       const orderNumber = String(order.orderNumber);
-      return customerName.includes(query) || orderNumber.includes(query);
+      const customerPhone = order.customerPhone || '';
+      return customerName.includes(query) || orderNumber.includes(query) || customerPhone.includes(query);
     });
 
   }, [orders, customers, searchQuery]);
@@ -369,7 +375,7 @@ function OrdersPageClient() {
           </CardDescription>
           <div className="pt-2">
             <Input
-              placeholder="Search by Order # or Customer Name..."
+              placeholder="Search by Order #, Customer Name, or Phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="max-w-sm"
@@ -395,7 +401,10 @@ function OrdersPageClient() {
               {combinedOrders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">#{order.orderNumber}</TableCell>
-                  <TableCell>{order.customerName}</TableCell>
+                  <TableCell>
+                    <div>{order.customerName}</div>
+                    <div className="text-sm text-muted-foreground">{order.customerPhone}</div>
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {getItemsSummary(order.items)}
                   </TableCell>
@@ -488,3 +497,5 @@ export default function OrdersPage() {
     </Suspense>
   );
 }
+
+    
