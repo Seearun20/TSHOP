@@ -424,23 +424,21 @@ export default function NewOrderPage() {
         const stitchingItems = values.items.filter(item => item.type === 'stitching');
         if (stitchingItems.length > 0) {
             const customerRef = doc(db, 'customers', finalCustomerId);
-            const customerSnap = await transaction.get(customerRef);
-            if (customerSnap.exists()) {
-                const customerData = customerSnap.data() as Customer;
-                const updatedMeasurements = customerData.measurements || {};
-                let measurementsUpdated = false;
+            const updates: { [key: string]: any } = {};
+            let measurementsUpdated = false;
 
-                stitchingItems.forEach(item => {
-                    const { apparel, measurements } = item.details;
-                    if (apparel && measurements && Object.keys(measurements).length > 0) {
-                        updatedMeasurements[apparel] = measurements;
-                        measurementsUpdated = true;
-                    }
-                });
-                
-                if (measurementsUpdated) {
-                    transaction.update(customerRef, { measurements: updatedMeasurements });
+            stitchingItems.forEach(item => {
+                const { apparel, measurements } = item.details;
+                if (apparel && measurements && Object.keys(measurements).length > 0) {
+                    Object.keys(measurements).forEach(field => {
+                        updates[`measurements.${apparel}.${field}`] = measurements[field];
+                    });
+                    measurementsUpdated = true;
                 }
+            });
+            
+            if (measurementsUpdated) {
+                transaction.update(customerRef, updates);
             }
         }
 
@@ -478,8 +476,8 @@ export default function NewOrderPage() {
       }).catch((error: any) => {
         console.error("Transaction failed: ", error);
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'orders', 
-          operation: 'create',
+          path: 'orders or customers', 
+          operation: 'create/update',
           requestResourceData: values,
         }));
       });
@@ -663,3 +661,4 @@ export default function NewOrderPage() {
     </Form>
     );
 }
+

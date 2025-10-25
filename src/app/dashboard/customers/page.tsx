@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -68,6 +69,7 @@ import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, Doc
 import { Separator } from "@/components/ui/separator";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { apparelMeasurements } from "@/lib/data";
 
 export interface Customer {
     id: string;
@@ -75,33 +77,30 @@ export interface Customer {
     phone: string;
     email: string;
     measurements?: {
-        shirtLength?: string;
-        pantLength?: string;
-        chest?: string;
-        sleeve?: string;
-        shoulder?: string;
-        waist?: string;
-        hip?: string;
-        notes?: string;
+        [apparel: string]: {
+            [field: string]: string;
+        }
     };
 }
 
-const measurementSchema = z.object({
-  shirtLength: z.string().optional(),
-  pantLength: z.string().optional(),
-  chest: z.string().optional(),
-  sleeve: z.string().optional(),
-  shoulder: z.string().optional(),
-  waist: z.string().optional(),
-  hip: z.string().optional(),
-  notes: z.string().optional(),
-});
+// Dynamically create a schema for all possible measurements
+const measurementFields = Object.values(apparelMeasurements).reduce((acc, schema) => {
+    return { ...acc, ...schema.shape };
+}, {});
+
+const allMeasurementsSchema = z.object(
+    Object.keys(apparelMeasurements).reduce((acc, apparel) => {
+        acc[apparel] = z.object(apparelMeasurements[apparel].shape).optional();
+        return acc;
+    }, {} as Record<string, z.ZodObject<any>>)
+).optional();
+
 
 const customerSchema = z.object({
   name: z.string().min(1, "Customer name is required"),
   phone: z.string().min(10, "Phone number must be at least 10 digits"),
   email: z.string().email("Invalid email address").optional().or(z.literal('')),
-  measurements: measurementSchema.optional(),
+  measurements: allMeasurementsSchema,
 });
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
@@ -114,16 +113,7 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
       name: "",
       phone: "",
       email: "",
-      measurements: {
-        shirtLength: "",
-        pantLength: "",
-        chest: "",
-        sleeve: "",
-        shoulder: "",
-        waist: "",
-        hip: "",
-        notes: "",
-      },
+      measurements: {},
     },
   });
 
@@ -149,6 +139,7 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
         setOpen(false);
         form.reset();
     } catch (error) {
+        console.error("Error submitting form: ", error);
         const path = isEditMode && customer ? doc(db, "customers", customer.id).path : collection(db, "customers").path;
         const permissionError = new FirestorePermissionError({
             path,
@@ -200,18 +191,27 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
           <Separator />
             <div>
               <h3 className="text-sm font-medium mb-2">Optional Measurements</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <FormField control={form.control} name="measurements.shirtLength" render={({ field }) => (<FormItem><FormLabel>Shirt L</FormLabel><FormControl><Input placeholder="e.g. 28" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="measurements.pantLength" render={({ field }) => (<FormItem><FormLabel>Pant L</FormLabel><FormControl><Input placeholder="e.g. 40" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="measurements.chest" render={({ field }) => (<FormItem><FormLabel>Chest</FormLabel><FormControl><Input placeholder="e.g. 42" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="measurements.sleeve" render={({ field }) => (<FormItem><FormLabel>Sleeve</FormLabel><FormControl><Input placeholder="e.g. 25" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="measurements.shoulder" render={({ field }) => (<FormItem><FormLabel>Shoulder</FormLabel><FormControl><Input placeholder="e.g. 18" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="measurements.waist" render={({ field }) => (<FormItem><FormLabel>Waist</FormLabel><FormControl><Input placeholder="e.g. 36" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="measurements.hip" render={({ field }) => (<FormItem><FormLabel>Hip</FormLabel><FormControl><Input placeholder="e.g. 44" {...field} /></FormControl><FormMessage /></FormItem>)} />
-              </div>
-              <div className="mt-4">
-                <FormField control={form.control} name="measurements.notes" render={({ field }) => (<FormItem><FormLabel>Notes</FormLabel><FormControl><Textarea placeholder="Any other notes..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-              </div>
+              {Object.keys(apparelMeasurements).map(apparel => (
+                <div key={apparel} className="mb-4">
+                    <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">{apparel}</h4>
+                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {Object.keys(apparelMeasurements[apparel].shape).map(field => (
+                             <FormField 
+                                key={`${apparel}-${field}`}
+                                control={form.control} 
+                                name={`measurements.${apparel}.${field}` as any}
+                                render={({ field: formField }) => (
+                                    <FormItem>
+                                        <FormLabel className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1')}</FormLabel>
+                                        <FormControl><Input placeholder="..." {...formField} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} 
+                            />
+                        ))}
+                    </div>
+                </div>
+              ))}
             </div>
 
         <DialogFooter>
@@ -278,14 +278,18 @@ export default function CustomersPage() {
   }
 
   const formatMeasurements = (measurements: Customer['measurements']) => {
-    if (!measurements) return 'N/A';
-    return Object.entries(measurements)
-      .filter(([, value]) => value)
-      .map(([key, value]) => {
-        const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-        return `${label}: ${value}`;
-      })
-      .join('\n');
+    if (!measurements || Object.keys(measurements).length === 0) return 'N/A';
+    
+    return Object.entries(measurements).map(([apparel, fields]) => {
+      const fieldStr = Object.entries(fields)
+        .filter(([, value]) => value)
+        .map(([key, value]) => {
+          const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+          return `${label}: ${value}`;
+        })
+        .join(' | ');
+      return `[${apparel}] ${fieldStr}`;
+    }).join('\n');
   };
 
   return (
@@ -297,14 +301,16 @@ export default function CustomersPage() {
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Customer
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl">
                 <DialogHeader>
                 <DialogTitle>Add New Customer</DialogTitle>
                 <DialogDescription>
                     Fill in the details below to add a new customer to your records.
                 </DialogDescription>
                 </DialogHeader>
-                <CustomerForm setOpen={(open) => setDialogs(p => ({...p, add: open}))} />
+                <div className="max-h-[70vh] overflow-y-auto p-1">
+                    <CustomerForm setOpen={(open) => setDialogs(p => ({...p, add: open}))} />
+                </div>
             </DialogContent>
         </Dialog>
       </PageHeader>
@@ -347,10 +353,9 @@ export default function CustomersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onSelect={() => handleActionClick(customer, 'edit')}>Edit Customer</DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => handleActionClick(customer, 'edit')}>Update Measurements</DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => handleActionClick(customer, 'edit')}>Edit Details & Measurements</DropdownMenuItem>
                           <DropdownMenuItem>
-                            <Link href="/dashboard/orders">View Order History</Link>
+                            <Link href={`/dashboard/orders?search=${customer.phone}`}>View Order History</Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <AlertDialogTrigger asChild>
@@ -385,12 +390,14 @@ export default function CustomersPage() {
 
       {currentCustomer && (
         <Dialog open={dialogs.edit} onOpenChange={(open) => setDialogs(p => ({...p, edit: open}))}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>Edit Customer</DialogTitle>
                     <DialogDescription>Update the details for {currentCustomer.name}.</DialogDescription>
                 </DialogHeader>
-                <CustomerForm setOpen={(open) => setDialogs(p => ({...p, edit: open}))} customer={currentCustomer} />
+                 <div className="max-h-[70vh] overflow-y-auto p-1">
+                    <CustomerForm setOpen={(open) => setDialogs(p => ({...p, edit: open}))} customer={currentCustomer} />
+                </div>
             </DialogContent>
         </Dialog>
       )}
