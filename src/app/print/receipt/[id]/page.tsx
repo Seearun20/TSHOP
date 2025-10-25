@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,6 +8,7 @@ import { Order } from "@/app/dashboard/orders/page";
 import { Customer } from "@/app/dashboard/customers/page";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { apparelMeasurements } from "@/lib/data";
 
 export default function ReceiptPrintPage({ params }: { params: { id: string } }) {
   const [order, setOrder] = useState<Order | null>(null);
@@ -88,6 +90,30 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
   for (let i = 0; i < stitchingItems.length; i += ITEMS_PER_SLIP) {
     slips.push(stitchingItems.slice(i, i + ITEMS_PER_SLIP));
   }
+  
+  const renderMeasurementGrid = (measurements: Record<string, string>, schema: z.ZodObject<any>) => {
+    if (!measurements || Object.keys(measurements).length === 0) return null;
+
+    return (
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {Object.keys(schema.shape).map(key => {
+                const value = measurements[key];
+                if (!value) return null;
+                return (
+                     <div 
+                        key={key} 
+                        className="flex justify-between items-center border-b border-dotted border-gray-400 pb-0.5"
+                        >
+                        <span className="text-[10px] text-gray-600 font-medium capitalize">
+                            {key.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '').trim()}:
+                        </span>
+                        <span className="text-xs font-bold text-gray-900">{value as string}</span>
+                    </div>
+                )
+            })}
+        </div>
+    );
+  };
 
   return (
     <div className="print-content bg-gray-100 print:bg-white">
@@ -95,7 +121,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
         <div 
           key={slipIndex}
           className="receipt-page bg-white mx-auto print:mx-0"
-          style={{ width: '5in', height: '5in' }}
+          style={{ width: '5in', minHeight: '5in' }}
         >
           <div className="h-full flex flex-col p-4 border-4 border-dashed border-gray-800 print:border-gray-800">
             {/* Header */}
@@ -144,52 +170,63 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
 
             {/* Measurements */}
             <div className="flex-1 space-y-4">
-              {slipItems.map((item, index) => (
-                <div 
-                  key={index} 
-                  className="bg-white border-2 border-gray-300 rounded-lg p-3 print:border-gray-300"
-                >
-                  <div className="bg-gray-900 text-white text-center py-1.5 px-3 rounded mb-2">
-                    <h4 className="font-bold uppercase tracking-wider text-sm">
-                      {item.details.apparel} (Qty: {item.quantity})
-                    </h4>
-                  </div>
-                  
-                  {item.details.measurements && Object.keys(item.details.measurements).length > 0 && (
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                        {Object.entries(item.details.measurements).map(([key, value]) => 
-                        value && (
-                            <div 
-                            key={key} 
-                            className="flex justify-between items-center border-b border-dotted border-gray-400 pb-0.5"
-                            >
-                            <span className="text-[10px] text-gray-600 font-medium capitalize">
-                                {key.replace(/([A-Z])/g, ' $1').trim()}:
-                            </span>
-                            <span className="text-xs font-bold text-gray-900">{value as string}</span>
-                            </div>
-                        )
-                        )}
-                    </div>
-                  )}
-                  
-                  {item.details.remarks && (
-                    <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-2 print:bg-blue-50">
-                      <p className="text-[10px] font-bold text-blue-800">
-                        <span className="font-extrabold">Remarks:</span> {item.details.remarks}
-                      </p>
-                    </div>
-                  )}
+              {slipItems.map((item, index) => {
+                const apparelSchema = apparelMeasurements[item.details.apparel];
+                if (!apparelSchema) return null;
 
-                  {item.details.isOwnFabric && (
-                    <div className="mt-2 bg-yellow-100 border border-yellow-400 rounded px-2 py-1 print:bg-yellow-100">
-                      <p className="text-[10px] font-bold text-center text-yellow-800">
-                        ⚠️ Customer's Own Fabric
-                      </p>
+                const isSuit = item.details.apparel === '2pc Suit' || item.details.apparel === '3pc Suit';
+                
+                return (
+                  <div 
+                    key={index} 
+                    className="bg-white border-2 border-gray-300 rounded-lg p-3 print:border-gray-300"
+                  >
+                    <div className="bg-gray-900 text-white text-center py-1.5 px-3 rounded mb-2">
+                      <h4 className="font-bold uppercase tracking-wider text-sm">
+                        {item.details.apparel} (Qty: {item.quantity})
+                      </h4>
                     </div>
-                  )}
-                </div>
-              ))}
+                    
+                    {isSuit ? (
+                        <div className="space-y-3">
+                           <div>
+                                <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Coat</h5>
+                                {renderMeasurementGrid(item.details.measurements, apparelMeasurements['Blazer'])}
+                           </div>
+                            <div>
+                                <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Pant</h5>
+                                {renderMeasurementGrid(item.details.measurements, apparelMeasurements['Pant'])}
+                           </div>
+                           {item.details.apparel === '3pc Suit' && (
+                            <div>
+                               <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Basket</h5>
+                                {renderMeasurementGrid(item.details.measurements, apparelMeasurements['Basket'])}
+                           </div>
+                           )}
+                        </div>
+                    ) : (
+                        renderMeasurementGrid(item.details.measurements, apparelSchema)
+                    )}
+
+                    
+                    {item.details.remarks && (
+                      <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-2 print:bg-blue-50">
+                        <p className="text-[10px] font-bold text-blue-800">
+                          <span className="font-extrabold">Remarks:</span> {item.details.remarks}
+                        </p>
+                      </div>
+                    )}
+
+                    {item.details.isOwnFabric && (
+                      <div className="mt-2 bg-yellow-100 border border-yellow-400 rounded px-2 py-1 print:bg-yellow-100">
+                        <p className="text-[10px] font-bold text-center text-yellow-800">
+                          ⚠️ Customer's Own Fabric
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
               
               {slips.length > 1 && (
                 <div className="text-center mt-2">
@@ -208,8 +245,8 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
       <style jsx global>{`
         @media print {
           @page {
-            size: 5in 5in;
-            margin: 0.25in;
+            size: 5in 8in;
+            margin: 0.2in;
           }
           body {
             -webkit-print-color-adjust: exact;

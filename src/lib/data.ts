@@ -73,7 +73,8 @@ export const serviceCharges = {
     '3pc Suit': 5000,
     '2pc Suit': 3500,
     'Blazer': 2500,
-    'Sherwani': 7000
+    'Sherwani': 7000,
+    'Basket': 1500,
 };
 
 // Measurement Schemas
@@ -95,15 +96,27 @@ export const shirtMeasurements = z.object({
     hip: z.string().optional(),
     collar: z.string().optional(),
 });
-export const blazerMeasurements = z.object({
-    length: z.string().optional(),
-    shoulder: z.string().optional(),
-    sleeve: z.string().optional(),
-    chest: z.string().optional(),
-    waist: z.string().optional(),
-    hip: z.string().optional(),
-    collar: z.string().optional(),
+
+export const coatMeasurements = z.object({
+    coatLength: z.string().optional(),
+    coatShoulder: z.string().optional(),
+    coatSleeve: z.string().optional(),
+    coatChest: z.string().optional(),
+    coatWaist: z.string().optional(),
+    coatHips: z.string().optional(),
+    coatCollar: z.string().optional(),
 });
+
+export const basketMeasurements = z.object({
+    basketLength: z.string().optional(),
+    basketShoulder: z.string().optional(),
+    basketChest: z.string().optional(),
+    basketWaist: z.string().optional(),
+    basketHip: z.string().optional(),
+    basketCollar: z.string().optional(),
+});
+
+
 export const pyjamaMeasurements = z.object({
     length: z.string().optional(),
     waist: z.string().optional(),
@@ -114,16 +127,18 @@ export const pyjamaMeasurements = z.object({
 });
 
 
-export const suitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape });
-export const sherwaniMeasurements = z.object({ ...suitMeasurements.shape, innerKurtaLength: z.string().optional() });
+export const twoPieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...coatMeasurements.shape });
+export const threePieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...coatMeasurements.shape, ...basketMeasurements.shape });
+export const sherwaniMeasurements = z.object({ ...twoPieceSuitMeasurements.shape, innerKurtaLength: z.string().optional() });
 
 
 export const apparelMeasurements: Record<string, z.ZodObject<any>> = {
   'Pant': pantMeasurements,
   'Shirt': shirtMeasurements,
   'Kurta Pyjama': pyjamaMeasurements,
-  '3pc Suit': suitMeasurements,
-  '2pc Suit': suitMeasurements,
+  '2pc Suit': twoPieceSuitMeasurements,
+  '3pc Suit': threePieceSuitMeasurements,
   'Sherwani': sherwaniMeasurements,
-  'Blazer': blazerMeasurements,
+  'Blazer': coatMeasurements,
+  'Basket': basketMeasurements,
 };

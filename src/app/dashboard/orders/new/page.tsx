@@ -160,6 +160,48 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
         setIsOwnFabric(false);
         setRemarks('');
     }
+
+    const renderMeasurementFields = (fields: string[]) => {
+      return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {fields.map(field => (
+                   <div key={field} className="space-y-2">
+                      <Label className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '')}</Label>
+                      <Input 
+                          value={measurements[field] || ''} 
+                          onChange={e => setMeasurements(m => ({...m, [field]: e.target.value}))}
+                          placeholder="..."
+                      />
+                  </div>
+              ))}
+          </div>
+      );
+  }
+
+    const renderSuitMeasurements = () => {
+        const coatFields = Object.keys(apparelMeasurements['Blazer'].shape);
+        const pantFields = Object.keys(apparelMeasurements['Pant'].shape);
+        const basketFields = apparel === '3pc Suit' ? Object.keys(apparelMeasurements['Basket'].shape) : [];
+
+        return (
+            <div className="space-y-4">
+                <div>
+                    <h4 className="font-medium text-sm text-muted-foreground mb-2">Coat Measurements</h4>
+                    {renderMeasurementFields(coatFields)}
+                </div>
+                <div>
+                    <h4 className="font-medium text-sm text-muted-foreground mb-2">Pant Measurements</h4>
+                    {renderMeasurementFields(pantFields)}
+                </div>
+                {apparel === '3pc Suit' && (
+                    <div>
+                        <h4 className="font-medium text-sm text-muted-foreground mb-2">Basket Measurements</h4>
+                        {renderMeasurementFields(basketFields)}
+                    </div>
+                )}
+            </div>
+        );
+    }
     
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -171,7 +213,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
                     <DialogTitle>Add Stitching Service</DialogTitle>
                     <DialogDescription>Select apparel, enter measurements and price.</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto p-2">
                     <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                            <Label>Apparel Type</Label>
@@ -198,7 +240,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
 
                     {apparel && <Separator/>}
 
-                    {apparel && measurementFields.length > 0 && (
+                    {apparel && (
                         <div>
                              <div className="flex items-center justify-between mb-2">
                                 <h4 className="font-medium">Measurements ({apparel})</h4>
@@ -209,18 +251,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
                                     </Button>
                                 )}
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {measurementFields.map(field => (
-                                     <div key={field} className="space-y-2">
-                                        <Label className="capitalize">{field.replace(/([A-Z])/g, ' $1')}</Label>
-                                        <Input 
-                                            value={measurements[field] || ''} 
-                                            onChange={e => setMeasurements(m => ({...m, [field]: e.target.value}))}
-                                            placeholder="..."
-                                        />
-                                    </div>
-                                ))}
-                            </div>
+                            {apparel === '2pc Suit' || apparel === '3pc Suit' ? renderSuitMeasurements() : renderMeasurementFields(measurementFields)}
                         </div>
                     )}
                     
@@ -431,9 +462,11 @@ export default function NewOrderPage() {
                 const { apparel, measurements } = item.details;
                 if (apparel && measurements && Object.keys(measurements).length > 0) {
                     Object.keys(measurements).forEach(field => {
-                        updates[`measurements.${apparel}.${field}`] = measurements[field];
+                         if (measurements[field]) { // only update if value is not empty
+                            updates[`measurements.${apparel}.${field}`] = measurements[field];
+                            measurementsUpdated = true;
+                        }
                     });
-                    measurementsUpdated = true;
                 }
             });
             

@@ -150,6 +150,30 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
     }
   };
 
+  const renderMeasurementFields = (apparel: string, subSchema: z.ZodObject<any>) => {
+    return (
+        <div key={apparel} className="mb-4">
+            <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">{apparel}</h4>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Object.keys(subSchema.shape).map(field => (
+                     <FormField 
+                        key={`${apparel}-${field}`}
+                        control={form.control} 
+                        name={`measurements.${apparel}.${field}` as any}
+                        render={({ field: formField }) => (
+                            <FormItem>
+                                <FormLabel className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '')}</FormLabel>
+                                <FormControl><Input placeholder="..." {...formField} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} 
+                    />
+                ))}
+            </div>
+        </div>
+    );
+  }
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -191,27 +215,22 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
           <Separator />
             <div>
               <h3 className="text-sm font-medium mb-2">Optional Measurements</h3>
-              {Object.keys(apparelMeasurements).map(apparel => (
-                <div key={apparel} className="mb-4">
-                    <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">{apparel}</h4>
-                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {Object.keys(apparelMeasurements[apparel].shape).map(field => (
-                             <FormField 
-                                key={`${apparel}-${field}`}
-                                control={form.control} 
-                                name={`measurements.${apparel}.${field}` as any}
-                                render={({ field: formField }) => (
-                                    <FormItem>
-                                        <FormLabel className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1')}</FormLabel>
-                                        <FormControl><Input placeholder="..." {...formField} /></FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )} 
-                            />
-                        ))}
-                    </div>
-                </div>
-              ))}
+              {Object.keys(apparelMeasurements).map(apparel => {
+                 if (apparel === '2pc Suit' || apparel === '3pc Suit') return null; // Handled separately
+                 return renderMeasurementFields(apparel, apparelMeasurements[apparel]);
+              })}
+              
+              <div>
+                <h4 className="text-xs font-semibold uppercase text-muted-foreground mt-4 mb-2">2pc Suit</h4>
+                {renderMeasurementFields('Coat', apparelMeasurements['Blazer'])}
+                {renderMeasurementFields('Pant', apparelMeasurements['Pant'])}
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold uppercase text-muted-foreground mt-4 mb-2">3pc Suit</h4>
+                {renderMeasurementFields('Coat', apparelMeasurements['Blazer'])}
+                {renderMeasurementFields('Pant', apparelMeasurements['Pant'])}
+                {renderMeasurementFields('Basket', apparelMeasurements['Basket'])}
+              </div>
             </div>
 
         <DialogFooter>
@@ -281,15 +300,18 @@ export default function CustomersPage() {
     if (!measurements || Object.keys(measurements).length === 0) return 'N/A';
     
     return Object.entries(measurements).map(([apparel, fields]) => {
+      if (!fields || Object.keys(fields).length === 0) return null;
       const fieldStr = Object.entries(fields)
         .filter(([, value]) => value)
         .map(([key, value]) => {
-          const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+          const label = key.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '').replace(/^./, str => str.toUpperCase());
           return `${label}: ${value}`;
         })
         .join(' | ');
+        
+      if (!fieldStr) return null;
       return `[${apparel}] ${fieldStr}`;
-    }).join('\n');
+    }).filter(Boolean).join('\n');
   };
 
   return (
@@ -405,5 +427,3 @@ export default function CustomersPage() {
     </div>
   );
 }
-
-    
