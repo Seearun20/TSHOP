@@ -9,7 +9,7 @@ import { Order } from "@/app/dashboard/orders/page";
 import { Customer } from "@/app/dashboard/customers/page";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apparelMeasurements, blazerMeasurements, pantMeasurements, shirtMeasurements, basketMeasurements } from "@/lib/data";
+import { apparelMeasurements, blazerMeasurements, pantMeasurements, shirtMeasurements, basketMeasurements, pyjamaMeasurements } from "@/lib/data";
 
 export default function ReceiptPrintPage({ params }: { params: { id: string } }) {
   const [order, setOrder] = useState<Order | null>(null);
@@ -92,6 +92,13 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
     slips.push(stitchingItems.slice(i, i + ITEMS_PER_SLIP));
   }
   
+    const generateLabel = (fieldName: string) => {
+        if (fieldName.startsWith('pyjama')) {
+            return fieldName.replace('pyjama', 'Pyjama ').replace(/([A-Z])/g, ' $1').trim();
+        }
+        return fieldName.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '').trim();
+    }
+
   const renderMeasurementGrid = (measurements: Record<string, string>, schema: z.ZodObject<any>) => {
     if (!measurements || Object.keys(measurements).length === 0) return null;
 
@@ -109,7 +116,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
                     className="flex justify-between items-center border-b border-dotted border-gray-400 pb-0.5"
                     >
                     <span className="text-[10px] text-gray-600 font-medium capitalize">
-                        {item.key.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '').trim()}:
+                        {generateLabel(item.key)}:
                     </span>
                     <span className="text-xs font-bold text-gray-900">{item.value as string}</span>
                 </div>
@@ -146,7 +153,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
             </div>
             <div>
                 <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Pyjama</h5>
-                {renderMeasurementGrid(measurements, pantMeasurements)}
+                {renderMeasurementGrid(measurements, pyjamaMeasurements)}
             </div>
         </div>
     )

@@ -70,7 +70,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Order } from "../page";
 import { Textarea } from "@/components/ui/textarea";
-import { apparelMeasurements, pantMeasurements, blazerMeasurements, basketMeasurements, shirtMeasurements } from "@/lib/data";
+import { apparelMeasurements, pantMeasurements, blazerMeasurements, basketMeasurements, shirtMeasurements, pyjamaMeasurements } from "@/lib/data";
 
 
 const orderItemSchema = z.object({
@@ -160,6 +160,15 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
         setIsOwnFabric(false);
         setRemarks('');
     }
+    
+    const generateLabel = (fieldName: string) => {
+        // Handle "pyjamaLength" -> "Pyjama Length"
+        if (fieldName.startsWith('pyjama')) {
+            return fieldName.replace('pyjama', 'Pyjama ').replace(/([A-Z])/g, ' $1').trim();
+        }
+        // Handle "coatLength" -> "Length", "basketLength" -> "Basket Length"
+        return fieldName.replace(/([A-Z])/g, ' $1').replace(/^(coat)\s/, '').replace(/^./, str => str.toUpperCase());
+    }
 
     const renderMeasurementFields = (subSchema: z.ZodObject<any>, title?: string) => {
       return (
@@ -168,7 +177,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {Object.keys(subSchema.shape).map(field => (
                        <div key={field} className="space-y-2">
-                          <Label className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1').replace(/^(coat)\s/, '')}</Label>
+                          <Label className="capitalize text-xs">{generateLabel(field)}</Label>
                           <Input 
                               value={measurements[field] || ''} 
                               onChange={e => setMeasurements(m => ({...m, [field]: e.target.value}))}
@@ -195,7 +204,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
         return (
             <div className="space-y-4">
                 {renderMeasurementFields(shirtMeasurements, 'Kurta Measurements')}
-                {renderMeasurementFields(pantMeasurements, 'Pyjama Measurements')}
+                {renderMeasurementFields(pyjamaMeasurements, 'Pyjama Measurements')}
             </div>
         )
     }
@@ -481,7 +490,7 @@ export default function NewOrderPage() {
                          updateNestedMeasurements('Basket', measurements);
                     } else if (apparel === 'Kurta Pyjama') {
                         updateNestedMeasurements('Shirt', measurements);
-                        updateNestedMeasurements('Pant', measurements);
+                        updateNestedMeasurements('Pyjama', measurements);
                     }
                     else {
                         updateNestedMeasurements(apparel, measurements);

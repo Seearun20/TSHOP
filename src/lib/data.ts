@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 
 // Mock data for StitchSavvy
@@ -113,19 +112,19 @@ export const basketMeasurements = z.object({
 
 
 export const pyjamaMeasurements = z.object({
-    length: z.string().optional(),
-    waist: z.string().optional(),
-    hip: z.string().optional(),
-    mori: z.string().optional(),
-    latak: z.string().optional(),
-    bottom: z.string().optional(),
+    pyjamaLength: z.string().optional(),
+    pyjamaWaist: z.string().optional(),
+    pyjamaHip: z.string().optional(),
+    pyjamaThigh: z.string().optional(),
+    pyjamaLatak: z.string().optional(),
+    pyjamaMori: z.string().optional(),
 });
 
 // Composite Schemas for Apparel
 export const twoPieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape });
 export const threePieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape, ...basketMeasurements.shape });
 export const sherwaniMeasurements = twoPieceSuitMeasurements;
-export const kurtaPyjamaMeasurements = z.object({ ...shirtMeasurements.shape, ...pantMeasurements.shape });
+export const kurtaPyjamaMeasurements = z.object({ ...shirtMeasurements.shape, ...pyjamaMeasurements.shape });
 
 
 // Master Apparel Measurement Definition

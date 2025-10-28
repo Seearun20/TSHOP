@@ -69,7 +69,7 @@ import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, Doc
 import { Separator } from "@/components/ui/separator";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { apparelMeasurements, blazerMeasurements, pantMeasurements, basketMeasurements, shirtMeasurements } from "@/lib/data";
+import { apparelMeasurements, blazerMeasurements, pantMeasurements, basketMeasurements, shirtMeasurements, pyjamaMeasurements } from "@/lib/data";
 
 export interface Customer {
     id: string;
@@ -145,6 +145,10 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
         errorEmitter.emit("permission-error", permissionError);
     }
   };
+  
+    const generateLabel = (fieldName: string) => {
+        return fieldName.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket|pyjama)\s/, '').replace(/^./, str => str.toUpperCase());
+    }
 
   const renderMeasurementFields = (apparel: string, subSchema: z.ZodObject<any>) => {
     return (
@@ -158,7 +162,7 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
                         name={`measurements.${apparel}.${field}` as any}
                         render={({ field: formField }) => (
                             <FormItem>
-                                <FormLabel className="capitalize text-xs">{field.replace(/([A-Z])/g, ' $1').replace(/^(coat)\s/, '')}</FormLabel>
+                                <FormLabel className="capitalize text-xs">{generateLabel(field)}</FormLabel>
                                 <FormControl><Input placeholder="..." {...formField} /></FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -219,7 +223,7 @@ const CustomerForm = memo(function CustomerForm({ setOpen, customer }: { setOpen
               <div>
                 <h4 className="text-xs font-semibold uppercase text-muted-foreground mt-4 mb-2">Kurta Pyjama</h4>
                 {renderMeasurementFields('Shirt', shirtMeasurements)}
-                {renderMeasurementFields('Pant', pantMeasurements)}
+                {renderMeasurementFields('Pyjama', pyjamaMeasurements)}
               </div>
               <div>
                 <h4 className="text-xs font-semibold uppercase text-muted-foreground mt-4 mb-2">2pc Suit / Sherwani</h4>
@@ -296,6 +300,10 @@ export default function CustomersPage() {
             errorEmitter.emit("permission-error", permissionError);
         });
   }
+  
+  const generateLabel = (fieldName: string) => {
+    return fieldName.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket|pyjama)\s/, '').replace(/^./, str => str.toUpperCase());
+  }
 
   const formatMeasurements = (measurements: Customer['measurements']) => {
     if (!measurements || Object.keys(measurements).length === 0) return 'N/A';
@@ -305,7 +313,7 @@ export default function CustomersPage() {
       const fieldStr = Object.entries(fields)
         .filter(([, value]) => value)
         .map(([key, value]) => {
-          const label = key.replace(/([A-Z])/g, ' $1').replace(/^(coat)\s/, '').replace(/^./, str => str.toUpperCase());
+          const label = generateLabel(key);
           return `${label}: ${value}`;
         })
         .join(' | ');
