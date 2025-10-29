@@ -70,7 +70,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Order } from "../page";
 import { Textarea } from "@/components/ui/textarea";
-import { apparelMeasurements, pantMeasurements, blazerMeasurements, basketMeasurements, shirtMeasurements, pyjamaMeasurements } from "@/lib/data";
+import { apparelMeasurements, pantMeasurements, blazerMeasurements, basketMeasurements, shirtMeasurements, pyjamaMeasurements, customMeasurements } from "@/lib/data";
 
 
 const orderItemSchema = z.object({
@@ -110,11 +110,12 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
     const [isOwnFabric, setIsOwnFabric] = useState(false);
     const [measurements, setMeasurements] = useState<Record<string, string>>({});
     const [remarks, setRemarks] = useState('');
+    const [customApparelName, setCustomApparelName] = useState('');
     
     const measurementFields = apparel ? Object.keys(apparelMeasurements[apparel as keyof typeof apparelMeasurements]?.shape || {}) : [];
 
     const previousMeasurement = useMemo(() => {
-        if (!customerId || !apparel || !orders.length) return null;
+        if (!customerId || !apparel || !orders.length || apparel === 'Custom') return null;
 
         const customerOrders = orders
             .filter(o => o.customerId === customerId)
@@ -145,12 +146,26 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
             return;
         }
 
+        if (apparel === 'Custom' && !customApparelName) {
+            toast({
+                variant: 'destructive',
+                title: "Custom Apparel Name Required",
+                description: "Please enter a name for the custom apparel."
+            });
+            return;
+        }
+
+        const itemName = apparel === 'Custom' ? `${customApparelName} Stitching` : `${apparel} Stitching`;
+        const details = apparel === 'Custom'
+            ? { apparel, customApparelName, measurements, isOwnFabric, remarks }
+            : { apparel, measurements, isOwnFabric, remarks };
+
         onAddItem({
             type: 'stitching',
-            name: `${apparel} Stitching`,
+            name: itemName,
             price: price,
             quantity: quantity,
-            details: { apparel, measurements, isOwnFabric, remarks }
+            details: details,
         });
         setOpen(false);
         setApparel('');
@@ -159,6 +174,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
         setMeasurements({});
         setIsOwnFabric(false);
         setRemarks('');
+        setCustomApparelName('');
     }
     
     const generateLabel = (fieldName: string) => {
@@ -191,10 +207,10 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
   }
 
     const renderSuitMeasurements = (suitType: '2pc Suit' | '3pc Suit' | 'Sherwani') => {
+        const coatMeasurements = suitType === '3pc Suit' ? z.object({...blazerMeasurements.shape, ...basketMeasurements.shape}) : blazerMeasurements;
         return (
             <div className="space-y-4">
-                {renderMeasurementFields(blazerMeasurements, 'Coat Measurements')}
-                {suitType === '3pc Suit' && renderMeasurementFields(basketMeasurements)}
+                {renderMeasurementFields(coatMeasurements, 'Coat Measurements')}
                 {renderMeasurementFields(pantMeasurements, 'Pant Measurements')}
             </div>
         );
@@ -208,6 +224,53 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
             </div>
         )
     }
+
+    const renderCustomMeasurements = () => {
+        return (
+            <div className="space-y-4">
+                {renderMeasurementFields(shirtMeasurements, 'Base Measurements (Shirt)')}
+                <Separator />
+                <h4 className="font-medium text-sm text-muted-foreground">Extra Measurements</h4>
+                <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-2">
+                        <Label className="capitalize text-xs">Param 1 Name</Label>
+                        <Input 
+                            value={measurements['customMeasurement1Name'] || ''} 
+                            onChange={e => setMeasurements(m => ({...m, customMeasurement1Name: e.target.value}))}
+                            placeholder="e.g., Ghera"
+                        />
+                    </div>
+                     <div className="space-y-2">
+                        <Label className="capitalize text-xs">Param 1 Value</Label>
+                        <Input 
+                            value={measurements['customMeasurement1Value'] || ''} 
+                            onChange={e => setMeasurements(m => ({...m, customMeasurement1Value: e.target.value}))}
+                            placeholder="e.g., 28"
+                        />
+                    </div>
+                </div>
+                 <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-2">
+                        <Label className="capitalize text-xs">Param 2 Name</Label>
+                        <Input 
+                            value={measurements['customMeasurement2Name'] || ''} 
+                            onChange={e => setMeasurements(m => ({...m, customMeasurement2Name: e.target.value}))}
+                            placeholder="e.g., Daman Style"
+                        />
+                    </div>
+                     <div className="space-y-2">
+                        <Label className="capitalize text-xs">Param 2 Value</Label>
+                        <Input 
+                            value={measurements['customMeasurement2Value'] || ''} 
+                            onChange={e => setMeasurements(m => ({...m, customMeasurement2Value: e.target.value}))}
+                            placeholder="e.g., Round"
+                        />
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -239,6 +302,14 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
                             <Input type="text" inputMode="numeric" value={quantity || ''} onChange={e => setQuantity(Number(e.target.value.replace(/[^0-9]/g, '')))} placeholder="Qty"/>
                         </div>
                     </div>
+
+                    {apparel === 'Custom' && (
+                        <div className="space-y-2">
+                            <Label>Custom Apparel Name</Label>
+                            <Input value={customApparelName} onChange={e => setCustomApparelName(e.target.value)} placeholder="e.g., Jodhpuri Suit" />
+                        </div>
+                    )}
+
                     <div className="flex items-center space-x-2">
                         <Switch id="own-fabric" checked={isOwnFabric} onCheckedChange={setIsOwnFabric}/>
                         <Label htmlFor="own-fabric">Customer's own fabric</Label>
@@ -249,7 +320,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
                     {apparel && (
                         <div>
                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-medium">Measurements ({apparel})</h4>
+                                <h4 className="font-medium">Measurements ({apparel === 'Custom' ? customApparelName || 'Custom' : apparel})</h4>
                                 {previousMeasurement && (
                                     <Button type="button" variant="outline" size="sm" onClick={handleFetchMeasurements}>
                                         <History className="mr-2 h-4 w-4"/>
@@ -261,7 +332,9 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
                               ? renderKurtaPyjamaMeasurements()
                               : (apparel === '2pc Suit' || apparel === '3pc Suit' || apparel === 'Sherwani')
                                 ? renderSuitMeasurements(apparel as any)
-                                : renderMeasurementFields(apparelMeasurements[apparel])
+                                : apparel === 'Custom'
+                                  ? renderCustomMeasurements()
+                                  : renderMeasurementFields(apparelMeasurements[apparel])
                             }
                         </div>
                     )}
@@ -469,13 +542,13 @@ export default function NewOrderPage() {
             let measurementsUpdated = false;
 
             stitchingItems.forEach(item => {
-                const { apparel, measurements } = item.details;
+                const { apparel, measurements, customApparelName } = item.details;
                 if (apparel && measurements && Object.keys(measurements).length > 0) {
                     
                     const updateNestedMeasurements = (apparelName: string, measurementData: Record<string,string>) => {
-                         Object.keys(measurementData).forEach(field => {
-                            if (measurementData[field]) { // only update if value is not empty
-                                updates[`measurements.${apparelName}.${field}`] = measurementData[field];
+                         Object.entries(measurementData).forEach(([field, value]) => {
+                            if (value) { 
+                                updates[`measurements.${apparelName}.${field}`] = value;
                                 measurementsUpdated = true;
                             }
                         });
@@ -491,6 +564,8 @@ export default function NewOrderPage() {
                     } else if (apparel === 'Kurta Pyjama') {
                         updateNestedMeasurements('Shirt', measurements);
                         updateNestedMeasurements('Pyjama', measurements);
+                    } else if (apparel === 'Custom' && customApparelName) {
+                        updateNestedMeasurements('Custom', {...measurements, customApparelName});
                     }
                     else {
                         updateNestedMeasurements(apparel, measurements);

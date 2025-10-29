@@ -120,6 +120,15 @@ export const pyjamaMeasurements = z.object({
     pyjamaMori: z.string().optional(),
 });
 
+export const customMeasurements = z.object({
+    customApparelName: z.string().optional(),
+    ...shirtMeasurements.shape,
+    customMeasurement1Name: z.string().optional(),
+    customMeasurement1Value: z.string().optional(),
+    customMeasurement2Name: z.string().optional(),
+    customMeasurement2Value: z.string().optional(),
+})
+
 // Composite Schemas for Apparel
 export const twoPieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape });
 export const threePieceSuitMeasurements = z.object({ ...pantMeasurements.shape, ...blazerMeasurements.shape, ...basketMeasurements.shape });
@@ -137,4 +146,5 @@ export const apparelMeasurements: Record<string, z.ZodObject<any>> = {
   'Sherwani': sherwaniMeasurements,
   'Blazer': blazerMeasurements, // Also referred to as 'Coat'
   'Basket': basketMeasurements,
+  'Custom': customMeasurements,
 };

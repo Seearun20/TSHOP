@@ -9,7 +9,8 @@ import { Order } from "@/app/dashboard/orders/page";
 import { Customer } from "@/app/dashboard/customers/page";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apparelMeasurements, blazerMeasurements, pantMeasurements, shirtMeasurements, basketMeasurements, pyjamaMeasurements } from "@/lib/data";
+import { apparelMeasurements, blazerMeasurements, pantMeasurements, shirtMeasurements, basketMeasurements, pyjamaMeasurements, customMeasurements } from "@/lib/data";
+import { z } from 'zod';
 
 export default function ReceiptPrintPage({ params }: { params: { id: string } }) {
   const [order, setOrder] = useState<Order | null>(null);
@@ -127,13 +128,13 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
 
   const renderSuitMeasurements = (item: OrderItem) => {
     const { apparel, measurements } = item.details;
-    const allCoatMeasurements = {...blazerMeasurements.shape, ...(apparel === '3pc Suit' ? basketMeasurements.shape : {})};
+    const coatSchema = apparel === '3pc Suit' ? z.object({...blazerMeasurements.shape, ...basketMeasurements.shape}) : blazerMeasurements;
     
     return (
         <div className="space-y-3">
             <div>
                 <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Coat</h5>
-                {renderMeasurementGrid(measurements, z.object(allCoatMeasurements))}
+                {renderMeasurementGrid(measurements, coatSchema)}
             </div>
             <div>
                 <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Pant</h5>
@@ -157,6 +158,42 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
             </div>
         </div>
     )
+  }
+  
+  const renderCustomMeasurements = (item: OrderItem) => {
+      const { measurements } = item.details;
+      const customField1Name = measurements.customMeasurement1Name;
+      const customField1Value = measurements.customMeasurement1Value;
+      const customField2Name = measurements.customMeasurement2Name;
+      const customField2Value = measurements.customMeasurement2Value;
+
+      return (
+        <div className="space-y-3">
+          <div>
+            <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Base (Shirt)</h5>
+            {renderMeasurementGrid(measurements, shirtMeasurements)}
+          </div>
+          {(customField1Name || customField2Name) && (
+            <div>
+              <h5 className="font-semibold text-xs text-center uppercase text-gray-500 tracking-wider">Extra</h5>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                {customField1Name && customField1Value && (
+                  <div className="flex justify-between items-center border-b border-dotted border-gray-400 pb-0.5">
+                    <span className="text-[10px] text-gray-600 font-medium capitalize">{customField1Name}:</span>
+                    <span className="text-xs font-bold text-gray-900">{customField1Value}</span>
+                  </div>
+                )}
+                {customField2Name && customField2Value && (
+                  <div className="flex justify-between items-center border-b border-dotted border-gray-400 pb-0.5">
+                    <span className="text-[10px] text-gray-600 font-medium capitalize">{customField2Name}:</span>
+                    <span className="text-xs font-bold text-gray-900">{customField2Value}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
   }
 
 
@@ -216,11 +253,13 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
             {/* Measurements */}
             <div className="flex-1 space-y-4">
               {slipItems.map((item, index) => {
-                const apparelSchema = apparelMeasurements[item.details.apparel];
+                const apparel = item.details.apparel;
+                const apparelSchema = apparelMeasurements[apparel];
                 if (!apparelSchema) return null;
 
-                const isSuit = item.details.apparel === '2pc Suit' || item.details.apparel === '3pc Suit' || item.details.apparel === 'Sherwani';
-                const isKurtaPyjama = item.details.apparel === 'Kurta Pyjama';
+                const isSuit = apparel === '2pc Suit' || apparel === '3pc Suit' || apparel === 'Sherwani';
+                const isKurtaPyjama = apparel === 'Kurta Pyjama';
+                const isCustom = apparel === 'Custom';
                 
                 return (
                   <div 
@@ -229,7 +268,7 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
                   >
                     <div className="bg-gray-900 text-white text-center py-1.5 px-3 rounded mb-2">
                       <h4 className="font-bold uppercase tracking-wider text-sm">
-                        {item.details.apparel} (Qty: {item.quantity})
+                        {isCustom ? item.details.customApparelName : apparel} (Qty: {item.quantity})
                       </h4>
                     </div>
                     
@@ -237,7 +276,9 @@ export default function ReceiptPrintPage({ params }: { params: { id: string } })
                         ? renderKurtaPyjamaMeasurements(item)
                         : isSuit 
                             ? renderSuitMeasurements(item)
-                            : renderMeasurementGrid(item.details.measurements, apparelSchema)
+                            : isCustom
+                              ? renderCustomMeasurements(item)
+                              : renderMeasurementGrid(item.details.measurements, apparelSchema)
                     }
                     
                     {item.details.remarks && (
