@@ -319,7 +319,7 @@ function OrdersPageClient() {
       cancel: false,
       payment: false,
   });
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || "");
 
   useEffect(() => {
     const ordersUnsub = onSnapshot(collection(db, "orders"), (snapshot) => {
