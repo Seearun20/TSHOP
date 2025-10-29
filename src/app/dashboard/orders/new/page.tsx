@@ -106,7 +106,8 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [apparel, setApparel] = useState('');
-    const [price, setPrice] = useState(0);
+    const [stitchingPrice, setStitchingPrice] = useState(0);
+    const [fabricPrice, setFabricPrice] = useState(0);
     const [quantity, setQuantity] = useState(1);
     const [isOwnFabric, setIsOwnFabric] = useState(false);
     const [measurements, setMeasurements] = useState<Record<string, string>>({});
@@ -142,8 +143,13 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
     };
     
     const handleAdd = () => {
-        if (!apparel || price <= 0 || quantity <= 0) {
-            // Basic validation
+        const totalItemPrice = (stitchingPrice || 0) + (!isOwnFabric ? (fabricPrice || 0) : 0);
+        if (!apparel || totalItemPrice <= 0 || quantity <= 0) {
+             toast({
+                variant: 'destructive',
+                title: "Missing Information",
+                description: "Please select an apparel, and enter a valid price and quantity."
+            });
             return;
         }
 
@@ -158,19 +164,20 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
 
         const itemName = apparel === 'Custom' ? `${customApparelName} Stitching` : `${apparel} Stitching`;
         const details = apparel === 'Custom'
-            ? { apparel, customApparelName, measurements, isOwnFabric, remarks }
-            : { apparel, measurements, isOwnFabric, remarks };
+            ? { apparel, customApparelName, measurements, isOwnFabric, remarks, stitchingPrice, fabricPrice: !isOwnFabric ? fabricPrice : 0 }
+            : { apparel, measurements, isOwnFabric, remarks, stitchingPrice, fabricPrice: !isOwnFabric ? fabricPrice : 0 };
 
         onAddItem({
             type: 'stitching',
             name: itemName,
-            price: price,
+            price: totalItemPrice,
             quantity: quantity,
             details: details,
         });
         setOpen(false);
         setApparel('');
-        setPrice(0);
+        setStitchingPrice(0);
+        setFabricPrice(0);
         setQuantity(1);
         setMeasurements({});
         setIsOwnFabric(false);
@@ -184,7 +191,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
             return fieldName.replace('pyjama', 'Pyjama ').replace(/([A-Z])/g, ' $1').trim();
         }
         // Handle "coatLength" -> "Length", "basketLength" -> "Basket Length"
-        return fieldName.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '').replace(/^./, str => str.toUpperCase());
+        return fieldName.replace(/([A-Z])/g, ' $1').replace(/^(coat)\s/, '').replace(/^./, str => str.toUpperCase());
     }
 
     const renderMeasurementFields = (subSchema: z.ZodObject<any>, title?: string) => {
@@ -208,10 +215,10 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
   }
 
     const renderSuitMeasurements = (suitType: '2pc Suit' | '3pc Suit' | 'Sherwani') => {
-        const coatMeasurements = suitType === '3pc Suit' ? z.object({...blazerMeasurements.shape, ...basketMeasurements.shape}) : blazerMeasurements;
+        const coatSchema = suitType === '3pc Suit' ? z.object({...blazerMeasurements.shape, ...basketMeasurements.shape}) : blazerMeasurements;
         return (
             <div className="space-y-4">
-                {renderMeasurementFields(coatMeasurements, 'Coat Measurements')}
+                {renderMeasurementFields(coatSchema, 'Coat Measurements')}
                 {renderMeasurementFields(pantMeasurements, 'Pant Measurements')}
             </div>
         );
@@ -296,7 +303,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
                         </div>
                         <div className="space-y-2">
                             <Label>Stitching Price</Label>
-                            <Input type="text" inputMode="numeric" value={price || ''} onChange={e => setPrice(Number(e.target.value.replace(/[^0-9]/g, '')))} placeholder="Enter price"/>
+                            <Input type="text" inputMode="numeric" value={stitchingPrice || ''} onChange={e => setStitchingPrice(Number(e.target.value.replace(/[^0-9]/g, '')))} placeholder="Stitching price"/>
                         </div>
                          <div className="space-y-2">
                             <Label>Quantity</Label>
@@ -310,11 +317,19 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
                             <Input value={customApparelName} onChange={e => setCustomApparelName(e.target.value)} placeholder="e.g., Jodhpuri Suit" />
                         </div>
                     )}
-
+                    
                     <div className="flex items-center space-x-2">
                         <Switch id="own-fabric" checked={isOwnFabric} onCheckedChange={setIsOwnFabric}/>
                         <Label htmlFor="own-fabric">Customer's own fabric</Label>
                     </div>
+
+                    {!isOwnFabric && (
+                         <div className="space-y-2">
+                            <Label>Fabric Price (Optional)</Label>
+                            <Input type="text" inputMode="numeric" value={fabricPrice || ''} onChange={e => setFabricPrice(Number(e.target.value.replace(/[^0-9]/g, '')))} placeholder="Enter fabric price"/>
+                        </div>
+                    )}
+
 
                     {apparel && <Separator/>}
 
