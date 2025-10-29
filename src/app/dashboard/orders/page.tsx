@@ -66,6 +66,7 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { Customer } from "@/app/dashboard/customers/page";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 
 export interface Payment {
     date: string;
@@ -95,6 +96,111 @@ export interface Order {
   // Properties to be added from customer data
   customerName?: string;
   customerPhone?: string;
+}
+
+function OrderDetailsDialog({ order, setOpen }: { order: Order; setOpen: (open: boolean) => void; }) {
+    const formatCurrency = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
+
+    const renderMeasurementValue = (label: string, value: string) => (
+        value ? <div className="text-xs"><span className="text-muted-foreground">{label}:</span> {value}</div> : null
+    );
+
+    return (
+        <DialogContent className="max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>Order #{order.orderNumber}</DialogTitle>
+                <DialogDescription>
+                    Details for order placed on {new Date(order.createdAt.seconds * 1000).toLocaleDateString()}.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[70vh] overflow-y-auto space-y-4 p-1">
+                {/* Customer and Date Info */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <Label className="text-muted-foreground">Customer</Label>
+                        <p>{order.customerName}</p>
+                        <p className="text-xs text-muted-foreground">{order.customerPhone}</p>
+                    </div>
+                    <div>
+                        <Label className="text-muted-foreground">Delivery Date</Label>
+                        <p>{order.deliveryDate ? new Date((order.deliveryDate as any).seconds * 1000).toLocaleDateString() : 'Not set'}</p>
+                    </div>
+                </div>
+
+                <Separator />
+                
+                {/* Items */}
+                <div>
+                    <h4 className="font-medium mb-2">Order Items</h4>
+                    <div className="space-y-3">
+                        {order.items.map((item, index) => (
+                            <div key={index} className="p-3 border rounded-lg">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-semibold">{item.name}</p>
+                                        <p className="text-sm text-muted-foreground">{item.quantity} x {formatCurrency(item.price)}</p>
+                                    </div>
+                                    <p className="font-semibold">{formatCurrency(item.quantity * item.price)}</p>
+                                </div>
+                                {item.type === 'stitching' && item.details?.measurements && (
+                                    <div className="mt-2 pt-2 border-t">
+                                        <h5 className="text-xs font-semibold text-muted-foreground">Measurements:</h5>
+                                        <div className="grid grid-cols-3 gap-x-4 gap-y-1 mt-1">
+                                            {Object.entries(item.details.measurements).map(([key, value]) =>
+                                                renderMeasurementValue(key, value as string)
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <Separator />
+
+                {/* Financial Summary */}
+                <div>
+                    <h4 className="font-medium mb-2">Payment Details</h4>
+                    <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Subtotal</span>
+                            <span>{formatCurrency(order.subtotal)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Advance Paid</span>
+                            <span>{formatCurrency(order.advance)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-base">
+                            <span>Balance Due</span>
+                            <span className={order.balance > 0 ? "text-destructive" : ""}>{formatCurrency(order.balance)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Payment History */}
+                {order.payments && order.payments.length > 0 && (
+                     <div>
+                        <Separator />
+                        <h4 className="font-medium my-2">Payment History</h4>
+                         <div className="space-y-2">
+                             {order.payments.map((payment, index) => (
+                                 <div key={index} className="flex justify-between items-center p-2 border rounded-md text-sm">
+                                     <div>
+                                        <p>Paid on {new Date(payment.date).toLocaleString()}</p>
+                                     </div>
+                                     <p className="font-medium">{formatCurrency(payment.amount)}</p>
+                                 </div>
+                             ))}
+                         </div>
+                    </div>
+                )}
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+            </DialogFooter>
+        </DialogContent>
+    );
 }
 
 function UpdateStatusDialog({ order, setOpen, onUpdate }: { order: Order; setOpen: (open: boolean) => void; onUpdate: (id: string, status: Order['status']) => void; }) {
@@ -207,7 +313,7 @@ function OrdersPageClient() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [dialogs, setDialogs] = useState({
-      invoice: false,
+      details: false,
       status: false,
       receipt: false,
       cancel: false,
@@ -399,7 +505,7 @@ function OrdersPageClient() {
             </TableHeader>
             <TableBody>
               {combinedOrders.map((order) => (
-                <TableRow key={order.id}>
+                <TableRow key={order.id} onClick={() => handleActionClick(order, 'details')} className="cursor-pointer">
                   <TableCell className="font-medium">#{order.orderNumber}</TableCell>
                   <TableCell>
                     <div>{order.customerName}</div>
@@ -425,13 +531,14 @@ function OrdersPageClient() {
                   <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
+                          <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
                             <span className="sr-only">Open menu</span>
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onSelect={() => handleActionClick(order, 'details')}>View Details</DropdownMenuItem>
                            <DropdownMenuItem onSelect={() => handleActionClick(order, 'payment')} disabled={order.balance <= 0}>
                             Receive Payment
                           </DropdownMenuItem>
@@ -460,6 +567,9 @@ function OrdersPageClient() {
 
       {currentOrder && (
          <>
+            <Dialog open={dialogs.details} onOpenChange={(open) => setDialogs(p => ({...p, details: open}))}>
+                <OrderDetailsDialog order={currentOrder} setOpen={(open) => setDialogs(p => ({...p, details: open}))} />
+            </Dialog>
             <Dialog open={dialogs.status} onOpenChange={(open) => setDialogs(p => ({...p, status: open}))}>
                <UpdateStatusDialog order={currentOrder} setOpen={(open) => setDialogs(p => ({...p, status: open}))} onUpdate={handleUpdateStatus}/>
             </Dialog>
@@ -497,5 +607,3 @@ export default function OrdersPage() {
     </Suspense>
   );
 }
-
-    
