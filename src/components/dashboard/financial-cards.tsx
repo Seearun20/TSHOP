@@ -5,13 +5,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Archive, DollarSign, ShoppingBag, UserPlus } from "lucide-react";
+import { Archive, DollarSign, ShoppingBag, UserPlus, CreditCard } from "lucide-react";
 
 interface FinancialCardsProps {
   summary: {
     totalSales: number;
     inventoryValue: number;
     newOrders: number;
+    totalAmountDue: number;
   };
 }
 
@@ -36,6 +37,18 @@ export function FinancialCards({ summary }: FinancialCardsProps) {
             {formatCurrency(summary.totalSales)}
           </div>
           <p className="text-xs text-muted-foreground">All-time sales revenue</p>
+        </CardContent>
+      </Card>
+       <Card className="shadow-lg">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Amount Due</CardTitle>
+          <CreditCard className="h-4 w-4 text-muted-foreground text-accent" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-destructive">
+            {formatCurrency(summary.totalAmountDue)}
+          </div>
+          <p className="text-xs text-muted-foreground">From all outstanding orders</p>
         </CardContent>
       </Card>
       <Card className="shadow-lg">

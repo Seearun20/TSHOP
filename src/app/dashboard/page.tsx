@@ -107,7 +107,9 @@ export default function DashboardPage() {
       return false;
     }).length;
 
-    return { totalSales, inventoryValue, newOrders };
+    const totalAmountDue = orders.reduce((sum, order) => sum + (order.balance > 0 ? order.balance : 0), 0);
+
+    return { totalSales, inventoryValue, newOrders, totalAmountDue };
   }, [orders, readyMadeStock, fabricStock]);
 
 
