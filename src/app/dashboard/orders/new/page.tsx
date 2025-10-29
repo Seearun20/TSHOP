@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -385,6 +384,7 @@ export default function NewOrderPage() {
     const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
     const [lastCreatedOrder, setLastCreatedOrder] = useState<Order | null>(null);
     const [showMeasurementSlipDialog, setShowMeasurementSlipDialog] = useState(false);
+    const [customerSearch, setCustomerSearch] = useState('');
 
     const [selectedReadyMade, setSelectedReadyMade] = useState<{item: ReadyMadeStockItem, quantity: number, price: number} | null>(null);
     const [selectedFabric, setSelectedFabric] = useState<{item: FabricStockItem, length: number, price: number} | null>(null);
@@ -431,6 +431,15 @@ export default function NewOrderPage() {
     const subtotal = useMemo(() => watchedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0), [watchedItems]);
     const advance = form.watch("advance") || 0;
     const balance = subtotal - advance;
+
+    const filteredCustomers = useMemo(() => {
+        if (!customerSearch) return customers;
+        const query = customerSearch.toLowerCase();
+        return customers.filter(c => 
+            c.name.toLowerCase().includes(query) || 
+            c.phone.includes(query)
+        );
+    }, [customers, customerSearch]);
 
     const handleAddItem = (item: OrderItem) => {
         append(item);
@@ -670,9 +679,17 @@ export default function NewOrderPage() {
                                 </FormItem>
                              )}/>
                             {customerType === 'existing' ? (
-                                <FormField control={form.control} name="customerId" render={({ field }) => (
-                                    <FormItem><FormLabel>Select Customer</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an existing customer" /></SelectTrigger></FormControl><SelectContent>{customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name} - {c.phone}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
-                                )}/>
+                                <div className="space-y-4">
+                                    <Input
+                                        placeholder="Search customer by name or phone..."
+                                        value={customerSearch}
+                                        onChange={e => setCustomerSearch(e.target.value)}
+                                        className="mb-2"
+                                    />
+                                    <FormField control={form.control} name="customerId" render={({ field }) => (
+                                        <FormItem><FormLabel>Select Customer</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an existing customer" /></SelectTrigger></FormControl><SelectContent>{filteredCustomers.map(c => <SelectItem key={c.id} value={c.id}>{c.name} - {c.phone}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                    )}/>
+                                </div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                                     <FormField control={form.control} name="newCustomerName" render={({ field }) => (<FormItem><FormLabel>New Customer Name</FormLabel><FormControl><Input placeholder="Full name" {...field} value={field.value ?? ''} /></FormControl><FormMessage/></FormItem>)} />
@@ -828,3 +845,5 @@ export default function NewOrderPage() {
     );
 }
 
+
+    
