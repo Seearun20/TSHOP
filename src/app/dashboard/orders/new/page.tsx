@@ -37,7 +37,7 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, PlusCircle, Printer, Trash2, X, History } from "lucide-react";
+import { CalendarIcon, PlusCircle, Printer, Trash2, X, History, ChevronsUpDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -70,6 +70,7 @@ import { Label } from "@/components/ui/label";
 import { Order } from "../page";
 import { Textarea } from "@/components/ui/textarea";
 import { apparelMeasurements, pantMeasurements, blazerMeasurements, basketMeasurements, shirtMeasurements, pyjamaMeasurements, customMeasurements } from "@/lib/data";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 
 const orderItemSchema = z.object({
@@ -384,7 +385,7 @@ export default function NewOrderPage() {
     const [fabricStock, setFabricStock] = useState<FabricStockItem[]>([]);
     const [lastCreatedOrder, setLastCreatedOrder] = useState<Order | null>(null);
     const [showMeasurementSlipDialog, setShowMeasurementSlipDialog] = useState(false);
-    const [customerSearch, setCustomerSearch] = useState('');
+    const [customerComboboxOpen, setCustomerComboboxOpen] = useState(false);
 
     const [selectedReadyMade, setSelectedReadyMade] = useState<{item: ReadyMadeStockItem, quantity: number, price: number} | null>(null);
     const [selectedFabric, setSelectedFabric] = useState<{item: FabricStockItem, length: number, price: number} | null>(null);
@@ -431,15 +432,6 @@ export default function NewOrderPage() {
     const subtotal = useMemo(() => watchedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0), [watchedItems]);
     const advance = form.watch("advance") || 0;
     const balance = subtotal - advance;
-
-    const filteredCustomers = useMemo(() => {
-        if (!customerSearch) return customers;
-        const query = customerSearch.toLowerCase();
-        return customers.filter(c => 
-            c.name.toLowerCase().includes(query) || 
-            c.phone.includes(query)
-        );
-    }, [customers, customerSearch]);
 
     const handleAddItem = (item: OrderItem) => {
         append(item);
@@ -679,17 +671,57 @@ export default function NewOrderPage() {
                                 </FormItem>
                              )}/>
                             {customerType === 'existing' ? (
-                                <div className="space-y-4">
-                                    <Input
-                                        placeholder="Search customer by name or phone..."
-                                        value={customerSearch}
-                                        onChange={e => setCustomerSearch(e.target.value)}
-                                        className="mb-2"
-                                    />
-                                    <FormField control={form.control} name="customerId" render={({ field }) => (
-                                        <FormItem><FormLabel>Select Customer</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an existing customer" /></SelectTrigger></FormControl><SelectContent>{filteredCustomers.map(c => <SelectItem key={c.id} value={c.id}>{c.name} - {c.phone}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
-                                    )}/>
-                                </div>
+                                <FormField control={form.control} name="customerId" render={({ field }) => (
+                                    <FormItem className="flex flex-col">
+                                        <FormLabel>Select Customer</FormLabel>
+                                        <Popover open={customerComboboxOpen} onOpenChange={setCustomerComboboxOpen}>
+                                            <PopoverTrigger asChild>
+                                                <FormControl>
+                                                    <Button
+                                                        variant="outline"
+                                                        role="combobox"
+                                                        className={cn(
+                                                            "w-full justify-between",
+                                                            !field.value && "text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        {field.value
+                                                            ? (customers.find(
+                                                                (c) => c.id === field.value
+                                                            )?.name || 'Select customer...') + ' - ' + (customers.find(
+                                                                (c) => c.id === field.value
+                                                            )?.phone || '')
+                                                            : "Select customer..."}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </FormControl>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-full p-0">
+                                                <Command>
+                                                    <CommandInput placeholder="Search customer by name or phone..." />
+                                                    <CommandList>
+                                                        <CommandEmpty>No customer found.</CommandEmpty>
+                                                        <CommandGroup>
+                                                            {customers.map((customer) => (
+                                                                <CommandItem
+                                                                    value={`${customer.name} ${customer.phone}`}
+                                                                    key={customer.id}
+                                                                    onSelect={() => {
+                                                                        form.setValue("customerId", customer.id);
+                                                                        setCustomerComboboxOpen(false);
+                                                                    }}
+                                                                >
+                                                                    {customer.name} - {customer.phone}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                                     <FormField control={form.control} name="newCustomerName" render={({ field }) => (<FormItem><FormLabel>New Customer Name</FormLabel><FormControl><Input placeholder="Full name" {...field} value={field.value ?? ''} /></FormControl><FormMessage/></FormItem>)} />
@@ -844,6 +876,3 @@ export default function NewOrderPage() {
     </Form>
     );
 }
-
-
-    
