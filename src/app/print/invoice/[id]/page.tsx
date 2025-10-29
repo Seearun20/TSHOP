@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -215,19 +216,31 @@ export default function InvoicePrintPage({ params }: { params: { id: string } })
                 </div>
                 
                 <div className="divide-y divide-gray-200">
-                  {pageItems.map((item, index) => (
-                    <div 
-                      key={index} 
-                      className="grid grid-cols-12 gap-2 px-3 py-2 text-xs hover:bg-gray-50 print:hover:bg-transparent"
-                    >
-                      <div className="col-span-5 font-medium text-gray-900">{item.name}</div>
-                      <div className="col-span-2 text-right text-gray-700">{formatCurrency(item.price)}</div>
-                      <div className="col-span-2 text-center text-gray-700">{item.quantity}</div>
-                      <div className="col-span-3 text-right font-semibold text-gray-900">
-                        {formatCurrency(item.price * item.quantity)}
+                  {pageItems.map((item, index) => {
+                    const isStitchingWithFabric = item.type === 'stitching' && item.details?.fabricPrice > 0;
+
+                    return (
+                      <div 
+                        key={index} 
+                        className="grid grid-cols-12 gap-2 px-3 py-2 text-xs hover:bg-gray-50 print:hover:bg-transparent"
+                      >
+                        <div className="col-span-5 font-medium text-gray-900">
+                          {item.name}
+                          {isStitchingWithFabric && (
+                              <div className="text-[10px] text-gray-500 pl-2">
+                                  <div>Stitching: {formatCurrency(item.details.stitchingPrice)}</div>
+                                  <div>Fabric: {formatCurrency(item.details.fabricPrice)}</div>
+                              </div>
+                          )}
+                        </div>
+                        <div className="col-span-2 text-right text-gray-700">{formatCurrency(item.price)}</div>
+                        <div className="col-span-2 text-center text-gray-700">{item.quantity}</div>
+                        <div className="col-span-3 text-right font-semibold text-gray-900">
+                          {formatCurrency(item.price * item.quantity)}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
 
