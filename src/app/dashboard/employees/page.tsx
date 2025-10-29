@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, Briefcase } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -67,11 +67,12 @@ import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, arrayUnion, 
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export interface Leave {
+export interface WorkItem {
     date: string;
-    description: string;
+    orderNumber: string;
+    apparel: string;
+    fee: number;
 }
 
 export interface Payment {
@@ -83,19 +84,14 @@ export interface Employee {
     id: string;
     name: string;
     role: string;
-    salary: number;
     balance: number;
-    leaves: Leave[];
-    paycheckDay: number;
-    lastSalaryUpdate: Timestamp;
+    workHistory: WorkItem[];
     payments: Payment[];
 }
 
 const employeeSchema = z.object({
     name: z.string().min(1, "Employee name is required"),
     role: z.string().min(1, "Role is required"),
-    salary: z.coerce.number().min(1, "Salary must be greater than 0"),
-    paycheckDay: z.coerce.number().min(1).max(28, "Paycheck day must be between 1 and 28"),
 });
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
@@ -117,13 +113,9 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
         defaultValues: employee ? {
             name: employee.name,
             role: employee.role,
-            salary: employee.salary,
-            paycheckDay: employee.paycheckDay,
         } : {
             name: "",
             role: "",
-            salary: 0,
-            paycheckDay: 1,
         },
     });
 
@@ -141,10 +133,9 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
             } else {
                 const newEmployee = { 
                     ...values, 
-                    balance: values.salary, // Initial balance is the salary
-                    leaves: [],
+                    balance: 0,
+                    workHistory: [],
                     payments: [],
-                    lastSalaryUpdate: Timestamp.now(),
                 };
                 await addDoc(collection(db, "employees"), newEmployee);
                 toast({
@@ -179,49 +170,14 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
                         </FormItem>
                     )}
                 />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="role"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Role</FormLabel>
-                                <FormControl><Input placeholder="e.g., Master Tailor" {...field} /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="salary"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Salary</FormLabel>
-                                <FormControl><Input type="number" placeholder="Monthly salary" {...field} /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                </div>
-                 <FormField
+                <FormField
                     control={form.control}
-                    name="paycheckDay"
+                    name="role"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Paycheck Day of Month</FormLabel>
-                            <Select onValueChange={(val) => field.onChange(Number(val))} defaultValue={String(field.value)}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a day" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
-                                        <SelectItem key={day} value={String(day)}>{day}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                             <FormMessage />
+                            <FormLabel>Role</FormLabel>
+                            <FormControl><Input placeholder="e.g., Master Tailor" {...field} /></FormControl>
+                            <FormMessage />
                         </FormItem>
                     )}
                 />
@@ -235,39 +191,38 @@ function EmployeeForm({ setOpen, employee }: { setOpen: (open: boolean) => void;
     );
 }
 
-function ManageLeavesDialog({ employee, setOpen }: { employee: Employee; setOpen: (open: boolean) => void; }) {
+function AssignWorkDialog({ employee, setOpen }: { employee: Employee; setOpen: (open: boolean) => void; }) {
     const { toast } = useToast();
-    const [description, setDescription] = useState('');
+    const [orderNumber, setOrderNumber] = useState('');
+    const [apparel, setApparel] = useState('');
+    const [fee, setFee] = useState<number | ''>('');
 
-    const handleAddLeave = async (e: React.FormEvent) => {
+    const handleAssignWork = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!description) return;
-        const employeeDoc = doc(db, "employees", employee.id);
-        const newLeave: Leave = {
-            date: new Date().toISOString(),
-            description: description
-        };
-        try {
-            await updateDoc(employeeDoc, { leaves: arrayUnion(newLeave) });
-            toast({
-                title: "Leave Added",
-                description: `A new leave has been recorded for ${employee.name}.`
-            });
-            setDescription('');
-        } catch (error) {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: employeeDoc.path, operation: 'update' }));
+        if (!orderNumber || !apparel || !fee || fee <= 0) {
+            toast({ variant: 'destructive', title: "Missing Information", description: "Please fill all fields with valid values." });
+            return;
         }
-    };
 
-    const handleRemoveLeave = async (leave: Leave) => {
         const employeeDoc = doc(db, "employees", employee.id);
+        const newWorkItem: WorkItem = {
+            date: new Date().toISOString(),
+            orderNumber,
+            apparel,
+            fee: Number(fee)
+        };
+        const newBalance = (employee.balance || 0) + Number(fee);
+
         try {
-            await updateDoc(employeeDoc, { leaves: arrayRemove(leave) });
-            toast({
-                variant: 'destructive',
-                title: "Leave Removed",
-                description: `A leave has been removed for ${employee.name}.`
+            await updateDoc(employeeDoc, {
+                workHistory: arrayUnion(newWorkItem),
+                balance: newBalance
             });
+            toast({
+                title: "Work Assigned",
+                description: `${apparel} for Order #${orderNumber} has been assigned to ${employee.name}.`
+            });
+            setOpen(false);
         } catch (error) {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: employeeDoc.path, operation: 'update' }));
         }
@@ -276,40 +231,60 @@ function ManageLeavesDialog({ employee, setOpen }: { employee: Employee; setOpen
     return (
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>Manage Leaves</DialogTitle>
-                <DialogDescription>Add or remove leaves for {employee.name}. Current leaves: {employee.leaves?.length || 0}</DialogDescription>
+                <DialogTitle>Assign Work to {employee.name}</DialogTitle>
+                <DialogDescription>Enter the details of the work item to assign.</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddLeave} className="py-4 space-y-4">
+            <form onSubmit={handleAssignWork} className="py-4 space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="leave-description">Leave Description</Label>
-                    <Textarea id="leave-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Family emergency" />
+                    <Label htmlFor="order-number">Order #</Label>
+                    <Input id="order-number" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} placeholder="e.g., 1024" />
                 </div>
-                <Button type="submit" disabled={!description}>Add Leave</Button>
+                <div className="space-y-2">
+                    <Label htmlFor="apparel-name">Apparel Name</Label>
+                    <Input id="apparel-name" value={apparel} onChange={(e) => setApparel(e.target.value)} placeholder="e.g., 2pc Suit" />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="fee">Fee</Label>
+                    <Input id="fee" type="number" value={fee} onChange={(e) => setFee(Number(e.target.value))} placeholder="Enter agreed fee" />
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                    <Button type="submit">Assign</Button>
+                </DialogFooter>
             </form>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-                <h4 className="font-medium">Leave History</h4>
-                {employee.leaves && employee.leaves.length > 0 ? (
-                    employee.leaves.map((leave, index) => (
+        </DialogContent>
+    );
+}
+
+function ViewWorkHistoryDialog({ employee, setOpen }: { employee: Employee; setOpen: (open: boolean) => void; }) {
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Work History for {employee.name}</DialogTitle>
+                <DialogDescription>Total pieces assigned: {employee.workHistory?.length || 0}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 max-h-60 overflow-y-auto py-4">
+                {employee.workHistory && employee.workHistory.length > 0 ? (
+                    [...employee.workHistory].reverse().map((item, index) => (
                         <div key={index} className="flex justify-between items-center p-2 border rounded-md">
                             <div>
-                                <p className="text-sm">{leave.description}</p>
-                                <p className="text-xs text-muted-foreground">{new Date(leave.date).toLocaleDateString()}</p>
+                                <p className="text-sm font-medium">{item.apparel} (Order #{item.orderNumber})</p>
+                                <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString()}</p>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => handleRemoveLeave(leave)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            <p className="font-medium text-sm">{formatCurrency(item.fee)}</p>
                         </div>
                     ))
                 ) : (
-                    <p className="text-sm text-muted-foreground">No leaves recorded.</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">No work items recorded.</p>
                 )}
             </div>
-             <DialogFooter>
+            <DialogFooter>
                 <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
             </DialogFooter>
         </DialogContent>
     );
 }
+
 
 function MakePaymentDialog({ employee, setOpen }: { employee: Employee; setOpen: (open: boolean) => void; }) {
     const { toast } = useToast();
@@ -352,7 +327,7 @@ function MakePaymentDialog({ employee, setOpen }: { employee: Employee; setOpen:
             <DialogHeader>
                 <DialogTitle>Make Payment to {employee.name}</DialogTitle>
                 <DialogDescription>
-                    Current balance due: <span className="font-medium text-destructive">{formatCurrency(employee.balance)}</span>
+                    Current balance due from assigned work: <span className="font-medium text-destructive">{formatCurrency(employee.balance)}</span>
                 </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
@@ -406,49 +381,16 @@ export default function EmployeesPage() {
         edit: false,
         delete: false,
         payment: false,
-        leaves: false,
-        history: false,
+        assignWork: false,
+        workHistory: false,
+        paymentHistory: false,
     });
     const { toast } = useToast();
-    
-    const updateSalaryBalances = useCallback(async (employeesData: Employee[]) => {
-        const today = new Date();
-        const currentDay = today.getDate();
-        const currentMonth = today.getMonth();
-        const currentYear = today.getFullYear();
-        
-        for (const employee of employeesData) {
-            if (!employee.lastSalaryUpdate || !employee.paycheckDay) continue;
-
-            const lastUpdateDate = employee.lastSalaryUpdate.toDate();
-            const lastUpdateMonth = lastUpdateDate.getMonth();
-            const lastUpdateYear = lastUpdateDate.getFullYear();
-
-            const isPaycheckDayPassed = currentDay >= employee.paycheckDay;
-            const isNewMonth = currentYear > lastUpdateYear || (currentYear === lastUpdateYear && currentMonth > lastUpdateMonth);
-
-            if (isPaycheckDayPassed && isNewMonth) {
-                const employeeDoc = doc(db, "employees", employee.id);
-                const newBalance = (employee.balance || 0) + employee.salary;
-                try {
-                    await updateDoc(employeeDoc, {
-                        balance: newBalance,
-                        lastSalaryUpdate: Timestamp.now()
-                    });
-                    console.log(`Updated balance for ${employee.name}`);
-                } catch (error) {
-                    console.error(`Failed to update balance for ${employee.name}:`, error);
-                    // Optionally emit a specific, non-blocking error here
-                }
-            }
-        }
-    }, []);
 
     useEffect(() => {
         const employeesCollection = collection(db, "employees");
         const unsubscribe = onSnapshot(employeesCollection, (snapshot) => {
             const employeesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            updateSalaryBalances(employeesData);
             setEmployees(employeesData);
         },
         (error) => {
@@ -456,12 +398,18 @@ export default function EmployeesPage() {
         });
 
         return () => unsubscribe();
-    }, [updateSalaryBalances]);
+    }, []);
 
-    const handleActionClick = (employee: Employee, dialog: keyof typeof dialogs) => {
+    const handleActionClick = (employee: Employee, dialog: keyof Omit<typeof dialogs, 'add' | 'delete'>) => {
         setCurrentEmployee(employee);
         setDialogs(prev => ({ ...prev, [dialog]: true }));
     };
+    
+    const openDialog = (dialog: keyof typeof dialogs, employee?: Employee | null) => {
+        setCurrentEmployee(employee || null);
+        setDialogs(prev => ({ ...prev, [dialog]: true }));
+    }
+
 
     const handleRemoveEmployee = async () => {
         if (!currentEmployee) return;
@@ -481,10 +429,10 @@ export default function EmployeesPage() {
 
     return (
         <div className="space-y-8">
-            <PageHeader title="Employees" subtitle="Manage your staff, salaries, and leaves.">
+            <PageHeader title="Employees" subtitle="Manage your staff and their assigned work.">
                 <Dialog open={dialogs.add} onOpenChange={(open) => setDialogs(p => ({ ...p, add: open }))}>
                     <DialogTrigger asChild>
-                        <Button onClick={() => setCurrentEmployee(null)}>
+                        <Button onClick={() => openDialog('add', null)}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Add Employee
                         </Button>
                     </DialogTrigger>
@@ -492,7 +440,7 @@ export default function EmployeesPage() {
                         <DialogHeader>
                             <DialogTitle>Add New Employee</DialogTitle>
                             <DialogDescription>
-                                Fill in the details below to add a new employee to your payroll.
+                                Fill in the details below to add a new employee.
                             </DialogDescription>
                         </DialogHeader>
                         <EmployeeForm setOpen={(open) => setDialogs(p => ({ ...p, add: open }))} />
@@ -503,7 +451,7 @@ export default function EmployeesPage() {
                 <CardHeader>
                     <CardTitle>Staff List</CardTitle>
                     <CardDescription>
-                        A list of all employees at your store.
+                        A list of all employees and their pending payments.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -512,9 +460,8 @@ export default function EmployeesPage() {
                             <TableRow>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Role</TableHead>
-                                <TableHead>Salary</TableHead>
                                 <TableHead>Balance Due</TableHead>
-                                <TableHead>Leaves Taken</TableHead>
+                                <TableHead>Pieces Assigned</TableHead>
                                 <TableHead>
                                     <span className="sr-only">Actions</span>
                                 </TableHead>
@@ -527,9 +474,8 @@ export default function EmployeesPage() {
                                     <TableCell>
                                         <Badge variant="outline">{employee.role}</Badge>
                                     </TableCell>
-                                    <TableCell>{formatCurrency(employee.salary)}</TableCell>
-                                    <TableCell className={employee.balance > 0 ? "text-destructive" : ""}>{formatCurrency(employee.balance)}</TableCell>
-                                    <TableCell>{employee.leaves?.length || 0}</TableCell>
+                                    <TableCell className={employee.balance > 0 ? "text-destructive font-medium" : ""}>{formatCurrency(employee.balance)}</TableCell>
+                                    <TableCell>{employee.workHistory?.length || 0}</TableCell>
                                     <TableCell>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
@@ -540,12 +486,18 @@ export default function EmployeesPage() {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'payment')}>Make Payment</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'history')}>View Payments</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'leaves')}>Manage Leaves</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'assignWork')}>
+                                                    <Briefcase className="mr-2 h-4 w-4" /> Assign Work
+                                                </DropdownMenuItem>
+                                                 <DropdownMenuItem onSelect={() => handleActionClick(employee, 'payment')} disabled={(employee.balance || 0) <= 0}>
+                                                    Make Payment
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'workHistory')}>View Work History</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => handleActionClick(employee, 'paymentHistory')}>View Payments</DropdownMenuItem>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem onSelect={() => handleActionClick(employee, 'edit')}>Edit Details</DropdownMenuItem>
-                                                <DropdownMenuItem className="text-destructive" onSelect={() => handleActionClick(employee, 'delete')}>
+                                                <DropdownMenuItem className="text-destructive" onSelect={() => openDialog('delete', employee)}>
                                                     Remove Employee
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -574,12 +526,16 @@ export default function EmployeesPage() {
                        <MakePaymentDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, payment: open}))} />
                     </Dialog>
 
-                     <Dialog open={dialogs.history} onOpenChange={(open) => setDialogs(p => ({...p, history: open}))}>
-                       <ViewPaymentsDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, history: open}))} />
+                     <Dialog open={dialogs.assignWork} onOpenChange={(open) => setDialogs(p => ({...p, assignWork: open}))}>
+                       <AssignWorkDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, assignWork: open}))} />
+                    </Dialog>
+                    
+                     <Dialog open={dialogs.workHistory} onOpenChange={(open) => setDialogs(p => ({...p, workHistory: open}))}>
+                       <ViewWorkHistoryDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, workHistory: open}))} />
                     </Dialog>
 
-                    <Dialog open={dialogs.leaves} onOpenChange={(open) => setDialogs(p => ({...p, leaves: open}))}>
-                        <ManageLeavesDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, leaves: open}))}/>
+                     <Dialog open={dialogs.paymentHistory} onOpenChange={(open) => setDialogs(p => ({...p, paymentHistory: open}))}>
+                       <ViewPaymentsDialog employee={currentEmployee} setOpen={(open) => setDialogs(p => ({...p, paymentHistory: open}))} />
                     </Dialog>
 
                     <AlertDialog open={dialogs.delete} onOpenChange={(open) => setDialogs(p => ({ ...p, delete: open }))}>
