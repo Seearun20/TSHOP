@@ -86,6 +86,7 @@ const orderSchema = z.object({
   customerId: z.string().optional(),
   newCustomerName: z.string().optional(),
   newCustomerPhone: z.string().optional(),
+  orderDate: z.date(),
   deliveryDate: z.date().optional(),
   items: z.array(orderItemSchema).min(1, "Order must have at least one item."),
   advance: z.coerce.number().min(0).optional(),
@@ -183,7 +184,7 @@ function StitchingServiceDialog({ onAddItem, customerId, orders }: { onAddItem: 
             return fieldName.replace('pyjama', 'Pyjama ').replace(/([A-Z])/g, ' $1').trim();
         }
         // Handle "coatLength" -> "Length", "basketLength" -> "Basket Length"
-        return fieldName.replace(/([A-Z])/g, ' $1').replace(/^(coat)\s/, '').replace(/^./, str => str.toUpperCase());
+        return fieldName.replace(/([A-Z])/g, ' $1').replace(/^(coat|basket)\s/, '').replace(/^./, str => str.toUpperCase());
     }
 
     const renderMeasurementFields = (subSchema: z.ZodObject<any>, title?: string) => {
@@ -400,6 +401,7 @@ export default function NewOrderPage() {
           customerId: '',
           newCustomerName: '',
           newCustomerPhone: '',
+          orderDate: new Date(),
           deliveryDate: undefined,
           items: [],
           advance: 0,
@@ -513,7 +515,7 @@ export default function NewOrderPage() {
           advance: advance,
           balance: balance,
           status: "In Progress" as const,
-          createdAt: new Date(),
+          createdAt: values.orderDate,
         };
         transaction.set(orderDocRef, newOrderData);
 
@@ -605,6 +607,7 @@ export default function NewOrderPage() {
           customerId: '',
           newCustomerName: '',
           newCustomerPhone: '',
+          orderDate: new Date(),
           deliveryDate: undefined,
           items: [],
           advance: 0,
@@ -637,7 +640,7 @@ export default function NewOrderPage() {
                     {/* Customer Details */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Customer & Delivery</CardTitle>
+                            <CardTitle>Customer & Dates</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                              <FormField control={form.control} name="customerType" render={({ field }) => (
@@ -661,16 +664,28 @@ export default function NewOrderPage() {
                                     <FormField control={form.control} name="newCustomerPhone" render={({ field }) => (<FormItem><FormLabel>New Customer Phone</FormLabel><FormControl><Input placeholder="Phone number" {...field} value={field.value ?? ''} /></FormControl><FormMessage/></FormItem>)} />
                                 </div>
                             )}
-                             <FormField control={form.control} name="deliveryDate" render={({ field }) => (
-                                <FormItem className="flex flex-col"><FormLabel>Expected Delivery Date</FormLabel>
-                                <Popover><PopoverTrigger asChild><FormControl>
-                                    <Button variant={"outline"} className={cn("w-[240px] pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                    {field.value ? format(field.value, "PPP") : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                    </Button>
-                                </FormControl></PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date < new Date()} initialFocus /></PopoverContent>
-                                </Popover><FormMessage /></FormItem>
-                             )}/>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField control={form.control} name="orderDate" render={({ field }) => (
+                                    <FormItem className="flex flex-col"><FormLabel>Order Date</FormLabel>
+                                    <Popover><PopoverTrigger asChild><FormControl>
+                                        <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                        {field.value ? format(field.value, "PPP") : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl></PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent>
+                                    </Popover><FormMessage /></FormItem>
+                                )}/>
+                                 <FormField control={form.control} name="deliveryDate" render={({ field }) => (
+                                    <FormItem className="flex flex-col"><FormLabel>Expected Delivery Date</FormLabel>
+                                    <Popover><PopoverTrigger asChild><FormControl>
+                                        <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                        {field.value ? format(field.value, "PPP") : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl></PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date < new Date()} initialFocus /></PopoverContent>
+                                    </Popover><FormMessage /></FormItem>
+                                 )}/>
+                             </div>
                         </CardContent>
                     </Card>
 
@@ -797,3 +812,4 @@ export default function NewOrderPage() {
     </Form>
     );
 }
+
