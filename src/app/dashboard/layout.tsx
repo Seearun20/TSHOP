@@ -9,6 +9,7 @@ import {
   LogOut,
   Shirt,
   HandPlatter,
+  DollarSign,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -178,7 +179,7 @@ export default function DashboardLayout({
               </AccordionItem>
             </Accordion>
             
-            <Accordion type="multiple" className="w-full" defaultValue={isParentActive('/dashboard/orders') ? ['orders'] : []}>
+            <Accordion type="multiple" className="w-full" defaultValue={isParentActive('/dashboard/orders') || isParentActive('/dashboard/outstanding-payments') ? ['orders'] : []}>
               <AccordionItem value="orders" className="border-none">
                 <AccordionTrigger className="hover:no-underline [&[data-state=open]>svg]:text-sidebar-accent-foreground p-2 text-sm rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground">
                    <div className="flex items-center gap-2">
@@ -199,6 +200,13 @@ export default function DashboardLayout({
                         <Link href="/dashboard/orders" passHref>
                           <SidebarMenuButton isActive={isActive('/dashboard/orders')} variant="ghost" size="sm">
                             <span>All Orders</span>
+                          </SidebarMenuButton>
+                        </Link>
+                      </SidebarMenuItem>
+                       <SidebarMenuItem>
+                        <Link href="/dashboard/outstanding-payments" passHref>
+                          <SidebarMenuButton isActive={isActive('/dashboard/outstanding-payments')} variant="ghost" size="sm">
+                            <span>Outstanding</span>
                           </SidebarMenuButton>
                         </Link>
                       </SidebarMenuItem>
