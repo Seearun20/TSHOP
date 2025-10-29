@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, Briefcase } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, Briefcase, CalendarIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -67,6 +67,10 @@ import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, arrayUnion, 
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
 
 export interface WorkItem {
     date: string;
@@ -196,17 +200,18 @@ function AssignWorkDialog({ employee, setOpen }: { employee: Employee; setOpen: 
     const [orderNumber, setOrderNumber] = useState('');
     const [apparel, setApparel] = useState('');
     const [fee, setFee] = useState<number | ''>('');
+    const [date, setDate] = useState<Date | undefined>(new Date());
 
     const handleAssignWork = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!orderNumber || !apparel || !fee || fee <= 0) {
+        if (!orderNumber || !apparel || !fee || fee <= 0 || !date) {
             toast({ variant: 'destructive', title: "Missing Information", description: "Please fill all fields with valid values." });
             return;
         }
 
         const employeeDoc = doc(db, "employees", employee.id);
         const newWorkItem: WorkItem = {
-            date: new Date().toISOString(),
+            date: date.toISOString(),
             orderNumber,
             apparel,
             fee: Number(fee)
@@ -235,17 +240,46 @@ function AssignWorkDialog({ employee, setOpen }: { employee: Employee; setOpen: 
                 <DialogDescription>Enter the details of the work item to assign.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAssignWork} className="py-4 space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="order-number">Order #</Label>
-                    <Input id="order-number" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} placeholder="e.g., 1024" />
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="order-number">Order #</Label>
+                        <Input id="order-number" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} placeholder="e.g., 1024" />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="date">Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                        "w-full justify-start text-left font-normal",
+                                        !date && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {date ? format(date, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                    mode="single"
+                                    selected={date}
+                                    onSelect={setDate}
+                                    initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="apparel-name">Apparel Name</Label>
-                    <Input id="apparel-name" value={apparel} onChange={(e) => setApparel(e.target.value)} placeholder="e.g., 2pc Suit" />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="fee">Fee</Label>
-                    <Input id="fee" type="number" value={fee} onChange={(e) => setFee(Number(e.target.value))} placeholder="Enter agreed fee" />
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="apparel-name">Apparel Name</Label>
+                        <Input id="apparel-name" value={apparel} onChange={(e) => setApparel(e.target.value)} placeholder="e.g., 2pc Suit" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="fee">Fee</Label>
+                        <Input id="fee" type="number" value={fee} onChange={(e) => setFee(Number(e.target.value))} placeholder="Enter agreed fee" />
+                    </div>
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
@@ -560,5 +594,7 @@ export default function EmployeesPage() {
         </div>
     );
 }
+
+    
 
     
